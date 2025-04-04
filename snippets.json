@@ -1,0 +1,44 @@
+{
+    "MiniLogic: Variable Assignment": {
+        "prefix": "var",
+        "body": [
+            "A = $1"
+        ],
+        "description": "Create a variable assignment (e.g., A = 1)"
+    },
+    "MiniLogic: Function Definition": {
+        "prefix": "func",
+        "body": [
+            "F(A, B) = $1"
+        ],
+        "description": "Create a function definition (e.g., F(A, B) = A or B)"
+    },
+    "MiniLogic: PRINT Statement": {
+        "prefix": "PRINT",
+        "body": [
+            "PRINT($1)"
+        ],
+        "description": "Create a PRINT statement"
+    },
+    "MiniLogic: TABLE Statement": {
+        "prefix": "TABLE",
+        "body": [
+            "TABLE($1)"
+        ],
+        "description": "Create a TABLE statement"
+    },
+    "MiniLogic: GRAPH Statement": {
+        "prefix": "GRAPH",
+        "body": [
+            "GRAPH($1)"
+        ],
+        "description": "Create a GRAPH statement"
+    },
+    "MiniLogic: Variable Reference": {
+        "prefix": "ref",
+        "body": [
+            "$1*"
+        ],
+        "description": "Insert a variable reference (e.g., A*)"
+    }
+}

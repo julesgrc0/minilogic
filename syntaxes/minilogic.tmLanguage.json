@@ -1,0 +1,79 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "MiniLogic",
+	"patterns": [
+		{ "include": "#comments" },
+		
+		{ "include": "#keywords" },
+		{ "include": "#boolean_operators" },
+		{ "include": "#builtins" },
+
+		{ "include": "#functions" },
+		{ "include": "#variables" },
+		
+		{ "include": "#numbers" }
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.hash.minilogic",
+					"match": "#.*$"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.minilogic",
+					"match": "\\b(not|and|or|xor|nand|nor|xnor|imply|nimply|equal|nequal)\\b"
+				}
+			]
+		},
+		"boolean_operators": {
+			"patterns": [
+				{
+					"name": "keyword.operator.assignment.minilogic",
+					"match": "="
+				}
+			]
+		},
+		"builtins": {
+			"patterns": [
+				{
+					"name": "support.function.builtin.minilogic",
+					"match": "\\b(PRINT|TABLE|GRAPH)\\b"
+				}
+			]
+		},
+		"functions": {
+			"patterns": [
+				{
+					"name": "entity.name.function.minilogic",
+					"match": "\\b[A-Za-z][A-Za-z0-9_]*\\s*\\("
+				},
+				{
+					"name": "variable.parameter.minilogic",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\*"
+				}
+			]
+		},
+		"variables": {
+			"patterns": [
+				{
+					"name": "variable.other.minilogic",
+					"match": "\\b[A-Za-z][A-Za-z0-9_]*\\b"
+				}
+			]
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.minilogic",
+					"match":"\\b[01]\\b"
+				}
+			]
+		}
+	},
+	"scopeName": "source.mlc"
+}

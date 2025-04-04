@@ -1,0 +1,30 @@
+# Node.js dependencies
+node_modules/
+
+# Build output
+out/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# VS Code settings
+.vscode/
+.vscode-test/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Lock files
+bun.lockb
+
+# Ignore compiled JavaScript files
+*.js.map
+*.js
