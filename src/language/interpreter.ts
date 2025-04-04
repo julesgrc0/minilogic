@@ -233,9 +233,9 @@ class Interpreter {
         return left !== right ? 1 : 0;
 
       case Operators.Imply:
-        return left && (right ? 1 : 0);
+        return !left || right ? 1 : 0;
       case Operators.Nimply:
-        return left && (right ? 0 : 1) ? 0 : 1;
+        return left && !right ? 1 : 0;
 
       default:
         throw new Error(`Unsupported binary operator: ${op}`);

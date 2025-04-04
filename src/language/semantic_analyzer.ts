@@ -128,7 +128,6 @@ class SemanticAnalyzer {
             );
             return;
           } else if (!expr.reference && !allowvar.includes(expr.name)) {
-            console.log("HERE", allowvar);
             this.pushError(expr.id, `Variable ${expr.name} not defined`);
           }
         } else {
