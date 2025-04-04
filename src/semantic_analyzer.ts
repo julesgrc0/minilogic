@@ -89,7 +89,7 @@ class SemanticAnalyzer {
     }
 
 
-    private checkExpression(expr: Expression, allowvar: string[]): void {
+    private checkExpression(expr: Expression, allowvar: string[] | number): void {
         switch (expr.type) {
             case ExpressionType.BinaryExpression:
                 this.checkExpression(expr.left, allowvar);
@@ -99,11 +99,12 @@ class SemanticAnalyzer {
                 this.checkExpression(expr.operand, allowvar);
                 break;
             case ExpressionType.Variable:
-                if (allowvar.length > 0) {
+                if (typeof allowvar != "number" && allowvar.length > 0) {
                     if (expr.reference && !this.variables.has(expr.name)) {
                         this.pushError(expr.id, `Variable reference ${expr.name} not found`);
                         return;
                     } else if (!expr.reference && !allowvar.includes(expr.name)) {
+                        console.log("HERE", allowvar)
                         this.pushError(expr.id, `Variable ${expr.name} not defined`);
                     }
                 } else {
@@ -121,7 +122,7 @@ class SemanticAnalyzer {
                 if (!this.functions.hasOwnProperty(expr.name)) {
                     this.pushError(expr.id, `Function ${expr.name} not defined`);
                 }
-                else if (allowvar.length !== expr.args.length) {
+                else if (this.functions[expr.name] !== expr.args.length) {
                     this.pushError(expr.id, `Function ${expr.name} called with ${expr.args.length} arguments, expected ${this.functions[expr.name]}`);
                 }
 
@@ -130,6 +131,10 @@ class SemanticAnalyzer {
                 }
                 break;
             case ExpressionType.TableDefinition:
+                if (typeof allowvar == "number") {
+                    this.pushError(expr.id, `Table definition has no parameters`);
+                    return;
+                }
                 this.checkTableDefinition(expr, allowvar.length);
                 break;
             case ExpressionType.Number:
@@ -145,7 +150,7 @@ class SemanticAnalyzer {
             case BuiltinType.Print:
                 for (const arg of stmt.args) {
                     if (arg.type === ExpressionType.FunctionCall) {
-                        this.checkExpression(arg, arg.args.map(arg => arg.type));
+                        this.checkExpression(arg, arg.args.length);
                     } else {
                         this.checkExpression(arg, []);
                     }

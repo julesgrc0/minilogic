@@ -55,11 +55,10 @@ class Interpreter {
             throw new Error(`Ambiguous function name ${stmt.name}, already used as variable`);
         }
 
-        if(stmt.expression.type === ExpressionType.TableDefinition)
-        {
+        if (stmt.expression.type === ExpressionType.TableDefinition) {
             this.functions.set(stmt.name, {
                 ...stmt,
-                expression:  this.convertTableToFunction(stmt.parameters, stmt.expression)
+                expression: this.convertTableToFunction(stmt.parameters, stmt.expression)
             });
 
             return;
@@ -97,17 +96,17 @@ class Interpreter {
             case ExpressionType.Number:
                 return expr.value;
             case ExpressionType.Variable:
-            
-                if(localVariables.size > 0) {
-                    if(expr.reference && !this.variables.has(expr.name)) {
+
+                if (localVariables.size > 0) {
+                    if (expr.reference && !this.variables.has(expr.name)) {
                         throw new Error(`Undefined variable reference: ${expr.name}`);
                     }
-                    if(!expr.reference && !localVariables.has(expr.name)) {
+                    if (!expr.reference && !localVariables.has(expr.name)) {
                         throw new Error(`Undefined variable: ${expr.name}`);
                     }
 
                     return expr.reference ? this.variables.get(expr.name)! : localVariables.get(expr.name)!;
-                }else{
+                } else {
                     if (!this.variables.has(expr.name)) {
                         throw new Error(`Undefined variable: ${expr.name}`);
                     }
@@ -123,32 +122,47 @@ class Interpreter {
                 return this.evalBinary(expr.operator, left, right);
             }
             case ExpressionType.FunctionCall:
-                return this.evalFunctionCall(expr);
+                return this.evalFunctionCall(expr, localVariables);
             case ExpressionType.TableDefinition:
                 throw new Error("TableDefinition cannot be evaluated directly");
         }
     }
 
-    private evalExpressionToString(expr: Expression): string {
+    private evalExpressionToString(expr: Expression, replaceVar: Map<string, string> = new Map()): string {
         switch (expr.type) {
             case ExpressionType.Number:
                 return expr.value.toString();
             case ExpressionType.Variable:
-                if (!this.variables.has(expr.name)) {
-                    throw new Error(`Undefined variable: ${expr.name}`);
+                if (replaceVar.has(expr.name)) {
+                    return replaceVar.get(expr.name)!;
                 }
-                return expr.name;
+                if (this.variables.has(expr.name)) {
+                    return expr.name + (expr.reference ? "*" : "");
+
+                }
+                throw new Error(`Undefined variable: ${expr.name}`);
             case ExpressionType.UnaryExpression: {
-                const operand = this.evalExpressionToString(expr.operand);
+                const operand = this.evalExpressionToString(expr.operand, replaceVar);
                 return `${expr.operator}(${operand})`;
             }
             case ExpressionType.BinaryExpression: {
-                const left = this.evalExpressionToString(expr.left);
-                const right = this.evalExpressionToString(expr.right);
+                const left = this.evalExpressionToString(expr.left, replaceVar);
+                const right = this.evalExpressionToString(expr.right, replaceVar);
                 return `(${left} ${expr.operator} ${right})`;
             }
             case ExpressionType.FunctionCall:
-                return `${expr.name}(${expr.args.map(arg => this.evalExpressionToString(arg)).join(", ")})`;
+
+                const func = this.functions.get(expr.name);
+                if (!func || func.type !== StatementType.FunctionDefinition) {
+                    throw new Error(`Undefined function: ${expr.name}`);
+                }
+
+                const replacement = new Map<string, string>();
+                for (let i = 0; i < func.parameters.length; i++) {
+                    replacement.set(func.parameters[i], this.evalExpressionToString(expr.args[i], replaceVar));
+                }
+                const stringFunc = `${func.name}(${func.parameters.map(param => replacement.get(param)).join(", ")})`;
+                return `${stringFunc} = ${this.evalExpressionToString(func.expression, replacement)}`;
             case ExpressionType.TableDefinition:
                 throw new Error("TableDefinition cannot be evaluated directly");
         }
@@ -183,7 +197,7 @@ class Interpreter {
         }
     }
 
-    private evalFunctionCall(expr: Expression): BinaryNumber {
+    private evalFunctionCall(expr: Expression, parentLocalVar: Map<string, BinaryNumber>): BinaryNumber {
         if (expr.type !== ExpressionType.FunctionCall) {
             throw new Error(`Expected FunctionCall, got ${expr.type}`);
         }
@@ -191,14 +205,15 @@ class Interpreter {
             throw new Error(`Undefined function: ${expr.name}`);
         }
         const func = this.functions.get(expr.name)!;
-        if(func.type !== StatementType.FunctionDefinition) {
+        if (func.type !== StatementType.FunctionDefinition) {
             throw new Error(`Expected FunctionDefinition, got ${func.type}`);
         }
-        
+
         const localVariables = new Map<string, BinaryNumber>();
-        for(let i = 0; i < func.parameters.length; i++) {
-            localVariables.set(func.parameters[i], this.evalExpression(expr.args[i]));
+        for (let i = 0; i < func.parameters.length; i++) {
+            localVariables.set(func.parameters[i], this.evalExpression(expr.args[i], parentLocalVar));
         }
+
         return this.evalExpression(func.expression, localVariables);
     }
 
@@ -245,9 +260,11 @@ const main = () => {
         B = (1 or 0) and 1
         PRINT(B)
 
-        F(A) = A and B*
+        G(A, B) = A xor B and 1
+        F(A) = A and B* or G(A, A xor not A)
         PRINT(F(1))
         PRINT(F(0)) 
+        SHOW(F(0))
         `
 
     const lexer = new Lexer(program);
