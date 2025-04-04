@@ -1,5 +1,4 @@
-import { Lexer } from "./lexer";
-import { Parser, Statement, Expression, StatementType, ExpressionType, BuiltinType } from "./parser";
+import { Statement, Expression, StatementType, ExpressionType, BuiltinType } from "./parser";
 
 type SemanticError = {
     position: number;
@@ -21,24 +20,45 @@ class SemanticAnalyzer {
     private checkVariable(stmt: Statement): void {
         if (stmt.type !== StatementType.Assignment) return;
 
+        let error = false;
         if (this.variables.has(stmt.variable)) {
             this.pushError(stmt.id, `Variable ${stmt.variable} already defined`);
-            return;
+            error = true;
+        }
+        if (this.functions.hasOwnProperty(stmt.variable)) {
+            this.pushError(stmt.id, `Ambiguous variable name ${stmt.variable}, already used as function`);
+            error = true;
         }
 
         this.checkExpression(stmt.expression, []);
+
+        if (error) return;
+
         this.variables.add(stmt.variable);
     }
 
     private checkFunction(stmt: Statement): void {
         if (stmt.type !== StatementType.FunctionDefinition) return;
 
+        let error = false;
+
         if (this.functions.hasOwnProperty(stmt.name)) {
             this.pushError(stmt.id, `Function ${stmt.name} already defined`);
+            error = true;
+        }
+        if (this.variables.has(stmt.name)) {
+            this.pushError(stmt.id, `Ambiguous function name ${stmt.name}, already used as variable`);
+            error = true;
+        }
+        if (stmt.parameters.length === 0) {
+            this.pushError(stmt.id, `Function ${stmt.name} has no parameters`);
             return;
         }
 
         this.checkExpression(stmt.expression, stmt.parameters);
+
+        if (error) return;
+
         this.functions[stmt.name] = stmt.parameters.length;
     }
 
@@ -83,9 +103,7 @@ class SemanticAnalyzer {
                     if (expr.reference && !this.variables.has(expr.name)) {
                         this.pushError(expr.id, `Variable reference ${expr.name} not found`);
                         return;
-                    }
-
-                    if (!allowvar.includes(expr.name)) {
+                    } else if (!expr.reference && !allowvar.includes(expr.name)) {
                         this.pushError(expr.id, `Variable ${expr.name} not defined`);
                     }
                 } else {
@@ -122,12 +140,15 @@ class SemanticAnalyzer {
     private checkBuiltin(stmt: Statement): void {
         if (stmt.type !== StatementType.BuiltinCall) return;
 
-        switch(stmt.name)
-        {
+        switch (stmt.name) {
             case BuiltinType.Show:
             case BuiltinType.Print:
                 for (const arg of stmt.args) {
-                    this.checkExpression(arg, []);
+                    if (arg.type === ExpressionType.FunctionCall) {
+                        this.checkExpression(arg, arg.args.map(arg => arg.type));
+                    } else {
+                        this.checkExpression(arg, []);
+                    }
                 }
                 break;
 
@@ -135,7 +156,7 @@ class SemanticAnalyzer {
                 if (stmt.args.length !== 1) {
                     this.pushError(stmt.id, `Graph function must have 1 argument`);
                 }
-                break;  
+                break;
             case BuiltinType.Table:
                 break;
 
@@ -161,51 +182,4 @@ class SemanticAnalyzer {
     }
 }
 
-
-const main = () => {
-
-    const program = `
-          A = not not not not not B
-          A = 1 or A and 0
-          B = 0 and C*
-          B = (B and C) or (C and B) and C*
-
-          F(x, y) = x or z and G(not J)
-
-          X = F(A, B or B, C)
-
-          Y(A, B) = [
-            001, 1
-            11, 1
-            11, 0
-          ]
-
-          PRINT(A or B and C, Y(0, 1))
-          GRAPH(F, B)
-      `;
-
-    const lexer = new Lexer(program);
-
-    let ast: Statement[];
-
-    try {
-        const parser = new Parser(lexer);
-        ast = parser.parseProgram();
-    } catch (e) {
-        console.error("Error parsing program: ", (e as Error).message);
-        return;
-    }
-
-    const analyzer = new SemanticAnalyzer(ast);
-    const errors = analyzer.analyze();
-
-    console.log("Found errors: ", errors.length);
-
-    for (const error of errors) {
-        const token = lexer.getTokenById(error.position);
-
-        console.error(`Error at position ${error.position} (${token?.value} ${token?.type}):  ${error.message}`);
-    }
-}
-
-main()
+export { SemanticAnalyzer, SemanticError };
