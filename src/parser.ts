@@ -15,6 +15,12 @@ enum ExpressionType {
   TableDefinition = "TableDefinition"
 }
 
+enum BuiltinType {
+  Print = "PRINT",
+  Show = "SHOW",
+  Table = "TABLE",
+  Graph = "GRAPH",
+}
 
 
 type BinaryNumber = 0 | 1;
@@ -35,7 +41,7 @@ type StatementCase = {
   expression: Expression;
 } | {
   type: StatementType.BuiltinCall;
-  name: string;
+  name: BuiltinType;
   args: Expression[];
 }
 
@@ -213,7 +219,7 @@ class Parser {
     return {
       id: token.pos,
       type: StatementType.BuiltinCall,
-      name: token.value,
+      name: token.value as BuiltinType,
       args,
     };
   }
@@ -316,6 +322,7 @@ class Parser {
 export {
   Parser,
 
+  BuiltinType,
   StatementType,
   Statement,
 

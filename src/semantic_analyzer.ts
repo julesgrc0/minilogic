@@ -1,5 +1,5 @@
 import { Lexer } from "./lexer";
-import { Parser, Statement, Expression, StatementType, ExpressionType } from "./parser";
+import { Parser, Statement, Expression, StatementType, ExpressionType, BuiltinType } from "./parser";
 
 type SemanticError = {
     position: number;
@@ -122,7 +122,24 @@ class SemanticAnalyzer {
     private checkBuiltin(stmt: Statement): void {
         if (stmt.type !== StatementType.BuiltinCall) return;
 
+        switch(stmt.name)
+        {
+            case BuiltinType.Show:
+            case BuiltinType.Print:
+                for (const arg of stmt.args) {
+                    this.checkExpression(arg, []);
+                }
+                break;
 
+            case BuiltinType.Graph:
+                if (stmt.args.length !== 1) {
+                    this.pushError(stmt.id, `Graph function must have 1 argument`);
+                }
+                break;  
+            case BuiltinType.Table:
+                break;
+
+        }
     }
 
     public analyze(): SemanticError[] {
@@ -164,7 +181,7 @@ const main = () => {
           ]
 
           PRINT(A or B and C, Y(0, 1))
-          GRAPH(F)
+          GRAPH(F, B)
       `;
 
     const lexer = new Lexer(program);
