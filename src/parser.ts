@@ -12,7 +12,7 @@ enum ExpressionType {
   Variable = "Variable",
   Number = "Number",
   FunctionCall = "FunctionCall",
-  TableDefinition = "TableDefinition"
+  TableDefinition = "TableDefinition",
 }
 
 enum BuiltinType {
@@ -22,54 +22,61 @@ enum BuiltinType {
   Graph = "GRAPH",
 }
 
-
 type BinaryNumber = 0 | 1;
 type BinaryVarNumber = BinaryNumber | "X";
 type TableRow = {
-  input: { value: BinaryNumber; id: number; }[][];
+  input: { value: BinaryNumber; id: number }[][];
   output: BinaryVarNumber[];
-}
+};
 
-type StatementCase = {
-  type: StatementType.Assignment;
-  variable: string;
-  expression: Expression;
-} | {
-  type: StatementType.FunctionDefinition;
-  name: string;
-  parameters: string[];
-  expression: Expression;
-} | {
-  type: StatementType.BuiltinCall;
-  name: BuiltinType;
-  args: Expression[];
-}
+type StatementCase =
+  | {
+      type: StatementType.Assignment;
+      variable: string;
+      expression: Expression;
+    }
+  | {
+      type: StatementType.FunctionDefinition;
+      name: string;
+      parameters: string[];
+      expression: Expression;
+    }
+  | {
+      type: StatementType.BuiltinCall;
+      name: BuiltinType;
+      args: Expression[];
+    };
 
-
-type ExpressionCase = {
-  type: ExpressionType.BinaryExpression;
-  left: Expression;
-  operator: Operators;
-  right: Expression;
-} | {
-  type: ExpressionType.UnaryExpression;
-  operator: Operators;
-  operand: Expression;
-} | {
-  type: ExpressionType.Variable;
-  name: string;
-  reference: boolean;
-} | {
-  type: ExpressionType.Number;
-  value: BinaryNumber;
-} | {
-  type: ExpressionType.FunctionCall;
-  name: string;
-  args: Expression[];
-} | {
-  type: ExpressionType.TableDefinition;
-  rows: TableRow[];
-}
+type ExpressionCase =
+  | {
+      type: ExpressionType.BinaryExpression;
+      left: Expression;
+      operator: Operators;
+      right: Expression;
+    }
+  | {
+      type: ExpressionType.UnaryExpression;
+      operator: Operators;
+      operand: Expression;
+    }
+  | {
+      type: ExpressionType.Variable;
+      name: string;
+      reference: boolean;
+    }
+  | {
+      type: ExpressionType.Number;
+      value: BinaryNumber;
+    }
+  | {
+      type: ExpressionType.FunctionCall;
+      name: string;
+      args: Expression[];
+    }
+  | {
+      type: ExpressionType.TableDefinition;
+      rows: TableRow[];
+    };
 
 type Statement = {
   id: number;
@@ -140,7 +147,10 @@ class Parser {
       this.eat(TokenType.RParen);
       this.eat(TokenType.Equals);
 
-      const expr = ((this.currentToken.type as TokenType) === TokenType.LBracket) ? this.parseTableDefinition() : this.parseExpression();
+      const expr =
+        (this.currentToken.type as TokenType) === TokenType.LBracket
+          ? this.parseTableDefinition()
+          : this.parseExpression();
       return {
         id: token.pos,
         type: StatementType.FunctionDefinition,
@@ -152,7 +162,6 @@ class Parser {
     throw new Error(`Invalid statement starting with token ${token.value}`);
   }
 
-
   private parseTableDefinition(): Expression {
     const token = this.currentToken;
     this.eat(TokenType.LBracket);
@@ -162,14 +171,17 @@ class Parser {
       const input: { value: BinaryNumber; id: number }[][] = [];
       const output: BinaryVarNumber[] = [];
 
-      let currentInput: { value: BinaryNumber; id: number; }[] = [];
+      let currentInput: { value: BinaryNumber; id: number }[] = [];
       while (this.currentToken.type === TokenType.Number) {
-        const bits = this.currentToken.value.split("")
+        const bits = this.currentToken.value.split("");
         for (const bit of bits) {
           if (bit !== "0" && bit !== "1") {
             throw new Error(`Invalid binary number ${this.currentToken.value}`);
           }
-          currentInput.push({ value: parseInt(bit) as BinaryNumber, id: this.currentToken.pos });
+          currentInput.push({
+            value: parseInt(bit) as BinaryNumber,
+            id: this.currentToken.pos,
+          });
         }
         this.eat(TokenType.Number);
       }
@@ -184,11 +196,16 @@ class Parser {
         }
         output.push((bit === "X" ? "X" : parseInt(bit)) as BinaryVarNumber);
         this.eat(TokenType.Number);
-      } else if (this.currentToken.type === TokenType.Identifier && this.currentToken.value === "X") {
+      } else if (
+        this.currentToken.type === TokenType.Identifier &&
+        this.currentToken.value === "X"
+      ) {
         output.push("X");
         this.eat(TokenType.Identifier);
       } else {
-        throw new Error(`Unexpected token ${this.currentToken.value} in truth table`);
+        throw new Error(
+          `Unexpected token ${this.currentToken.value} in truth table`
+        );
       }
 
       rows.push({ input, output });
@@ -201,7 +218,6 @@ class Parser {
     this.eat(TokenType.RBracket);
     return { id: token.pos, type: ExpressionType.TableDefinition, rows };
   }
-
 
   private parseBuiltinCall(): Statement {
     const token = this.eat(TokenType.Keyword);
@@ -242,7 +258,7 @@ class Parser {
         left,
         operator: token.value as Operators,
         right,
-      }
+      };
     }
 
     return left;
@@ -254,7 +270,10 @@ class Parser {
     return 1;
   }
   private parseUnaryExpression(): Expression {
-    if (this.currentToken.type === TokenType.Operator && this.currentToken.value === Operators.Not) {
+    if (
+      this.currentToken.type === TokenType.Operator &&
+      this.currentToken.value === Operators.Not
+    ) {
       const token = this.currentToken;
       this.eat(TokenType.Operator);
       const operand = this.parseUnaryExpression();
@@ -274,10 +293,19 @@ class Parser {
 
     if (token.type === TokenType.Number) {
       this.eat(TokenType.Number);
-      if (token.value.length !== 1 || (token.value !== "0" && token.value !== "1")) {
-        throw new Error(`Invalid binary number ${token.value} at pos ${token.pos}`);
+      if (
+        token.value.length !== 1 ||
+        (token.value !== "0" && token.value !== "1")
+      ) {
+        throw new Error(
+          `Invalid binary number ${token.value} at pos ${token.pos}`
+        );
       }
-      return { id: token.pos, type: ExpressionType.Number, value: parseInt(token.value) as BinaryNumber };
+      return {
+        id: token.pos,
+        type: ExpressionType.Number,
+        value: parseInt(token.value) as BinaryNumber,
+      };
     }
 
     if (token.type === TokenType.Identifier) {
@@ -295,7 +323,12 @@ class Parser {
           }
         }
         this.eat(TokenType.RParen);
-        return { id: token.pos, type: ExpressionType.FunctionCall, name: token.value, args };
+        return {
+          id: token.pos,
+          type: ExpressionType.FunctionCall,
+          name: token.value,
+          args,
+        };
       }
 
       let reference = false;
@@ -304,7 +337,12 @@ class Parser {
         this.eat(TokenType.Star);
       }
 
-      return { id: token.pos, type: ExpressionType.Variable, name: token.value, reference };
+      return {
+        id: token.pos,
+        type: ExpressionType.Variable,
+        name: token.value,
+        reference,
+      };
     }
 
     if (token.type === TokenType.LParen) {
@@ -318,21 +356,14 @@ class Parser {
   }
 }
 
-
 export {
   Parser,
-
   BuiltinType,
   StatementType,
   Statement,
-
   ExpressionType,
   Expression,
   TableRow,
-
-
   BinaryNumber,
   BinaryVarNumber,
-}
-
-
+};
