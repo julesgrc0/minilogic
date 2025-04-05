@@ -38,14 +38,10 @@ const actionRunCode = () => {
   const errors = semanticAnalyzer.analyze();
   if (errors.length > 0) {
     outputChannel.appendLine(
-      `❌ Semantic Error: Invalid MiniLogic code, found ${errors.length} error(s).`
+      `❌ Semantic Error: Invalid MiniLogic code, found ${errors.length} error(s) :`
     );
     for (const error of errors) {
-      if (error.position === -1) continue;
-      const token = lexer.getTokenById(error.position);
-
-      if (!token) continue;
-      outputChannel.appendLine(`  ${token.value}: ${error.message}`);
+      outputChannel.appendLine(`${error.message}`);
     }
     return;
   }
@@ -154,7 +150,7 @@ export function activate(context: vscode.ExtensionContext) {
   const loadWatcher = vscode.workspace.onDidOpenTextDocument(actionCodeUpdate);
   
   vscode.workspace.textDocuments.forEach((doc) => actionCodeUpdate(doc));
-  
+
   // TODO: with optimizer class
 
   // const codeActionProvider = vscode.languages.registerCodeActionsProvider(
