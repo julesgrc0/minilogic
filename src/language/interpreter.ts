@@ -95,7 +95,7 @@ class Interpreter {
 
       case BuiltinType.Show:
         const argsShow = stmt.args.map((arg) =>
-          this.evalExpressionToString(arg)
+          this.evalExpressionToString(arg, new Map(), true)
         );
         this.output.push(argsShow.join(", "));
         break;
@@ -110,7 +110,8 @@ class Interpreter {
 
   private evalExpressionToString(
     expr: Expression,
-    replaceVar: Map<string, string> = new Map()
+    replaceVar: Map<string, string> = new Map(),
+    allowall: boolean = false
   ): string {
     switch (expr.type) {
       case ExpressionType.Number:
@@ -122,19 +123,58 @@ class Interpreter {
         if (this.variables.has(expr.name)) {
           return expr.name + (expr.reference ? "*" : "");
         }
+
+        if (allowall) {
+          return expr.name + (expr.reference ? "*" : "");
+        }
+
         throw new Error(`Undefined variable: ${expr.name}`);
       case ExpressionType.UnaryExpression: {
-        const operand = this.evalExpressionToString(expr.operand, replaceVar);
+        const operand = this.evalExpressionToString(
+          expr.operand,
+          replaceVar,
+          allowall
+        );
+        if (expr.operator === Operators.Not) {
+          return `${expr.operator} ${operand}`;
+        }
         return `${expr.operator}(${operand})`;
       }
       case ExpressionType.BinaryExpression: {
-        const left = this.evalExpressionToString(expr.left, replaceVar);
-        const right = this.evalExpressionToString(expr.right, replaceVar);
+        const left = this.evalExpressionToString(
+          expr.left,
+          replaceVar,
+          allowall
+        );
+        const right = this.evalExpressionToString(
+          expr.right,
+          replaceVar,
+          allowall
+        );
+        if (
+          expr.operator === Operators.And ||
+          expr.operator === Operators.Nand
+        ) {
+          return `${left} ${expr.operator} ${right}`;
+        }
         return `(${left} ${expr.operator} ${right})`;
       }
       case ExpressionType.FunctionCall:
         const func = this.functions.get(expr.name);
         if (!func || func.type !== StatementType.FunctionDefinition) {
+          if (allowall) {
+            return (
+              expr.name +
+              "(" +
+              expr.args
+                .map((arg) =>
+                  this.evalExpressionToString(arg, replaceVar, allowall)
+                )
+                .join(", ") +
+              ")"
+            );
+          }
+
           throw new Error(`Undefined function: ${expr.name}`);
         }
 
@@ -142,7 +182,7 @@ class Interpreter {
         for (let i = 0; i < func.parameters.length; i++) {
           replacement.set(
             func.parameters[i],
-            this.evalExpressionToString(expr.args[i], replaceVar)
+            this.evalExpressionToString(expr.args[i], replaceVar, allowall)
           );
         }
         const stringFunc = `${func.name}(${func.parameters
@@ -150,7 +190,8 @@ class Interpreter {
           .join(", ")})`;
         return `${stringFunc} = ${this.evalExpressionToString(
           func.expression,
-          replacement
+          replacement,
+          allowall
         )}`;
       case ExpressionType.TableDefinition:
         throw new Error("TableDefinition cannot be evaluated directly");
@@ -276,14 +317,58 @@ class Interpreter {
       throw new Error(`Expected TableDefinition, got ${expr.type}`);
     }
 
-    const values: Set<string> = new Set();
+    const minterms: Expression[] = [];
+
     for (const row of expr.rows) {
-      if (row.output[0] == 1) {
-        values.add(row.input[0].map((inp) => inp.value).join(""));
+      if (row.output[0] === 1) {
+        const terms: Expression[] = [];
+
+        for (let i = 0; i < row.input[0].length; i++) {
+          const bit = row.input[0][i].value;
+          const variable: Expression = {
+            type: ExpressionType.Variable,
+            name: params[i],
+            reference: false,
+            id: -1,
+          };
+
+          terms.push(
+            bit === 1
+              ? variable
+              : {
+                  type: ExpressionType.UnaryExpression,
+                  operator: Operators.Not,
+                  operand: variable,
+                  id: -1,
+                }
+          );
+        }
+
+        const andExpr = terms.reduce((a, b) => ({
+          type: ExpressionType.BinaryExpression,
+          operator: Operators.And,
+          left: a,
+          right: b,
+          id: -1,
+        }));
+
+        minterms.push(andExpr);
       }
     }
-    console.log("Values: ", values);
-    return expr;
+
+    if (minterms.length === 0) {
+      return { type: ExpressionType.Number, value: 0, id: -1 };
+    }
+
+    const finalExpr = minterms.reduce((a, b) => ({
+      type: ExpressionType.BinaryExpression,
+      operator: Operators.Or,
+      left: a,
+      right: b,
+      id: -1,
+    }));
+
+    return finalExpr;
   }
 }
 
@@ -307,7 +392,7 @@ const main = () => {
           PRINT(A or B and C, Y(0, 1))
           GRAPH(F, B)
       `;
-  const program = `
+  const program1 = `
         B = (1 or 0) and 1
         PRINT(B)
 
@@ -317,6 +402,16 @@ const main = () => {
         PRINT(F(0)) 
         SHOW(F(0))
         `;
+  const program = `
+    F(A, B) = [
+      00, 0
+      01, 1
+      10, 0
+      11, 1
+    ]
+
+    SHOW(F(A, B))
+  `;
 
   const lexer = new Lexer(program);
 

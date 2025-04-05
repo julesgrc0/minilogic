@@ -110,16 +110,18 @@ class SemanticAnalyzer {
     }
   }
 
-  private checkExpression(expr: Expression, allowvar: string[] | number): void {
+  private checkExpression(expr: Expression, allowvar: string[] | number, allowall: boolean = false): void {
     switch (expr.type) {
       case ExpressionType.BinaryExpression:
-        this.checkExpression(expr.left, allowvar);
-        this.checkExpression(expr.right, allowvar);
+        this.checkExpression(expr.left, allowvar, allowall);
+        this.checkExpression(expr.right, allowvar, allowall);
         break;
       case ExpressionType.UnaryExpression:
-        this.checkExpression(expr.operand, allowvar);
+        this.checkExpression(expr.operand, allowvar, allowall);
         break;
       case ExpressionType.Variable:
+        if(allowall) return;
+
         if (typeof allowvar != "number" && allowvar.length > 0) {
           if (expr.reference && !this.variables.has(expr.name)) {
             this.pushError(
@@ -145,6 +147,8 @@ class SemanticAnalyzer {
         }
         break;
       case ExpressionType.FunctionCall:
+        if(allowall) return;
+
         if (!this.functions.hasOwnProperty(expr.name)) {
           this.pushError(expr.id, `Function ${expr.name} not defined`);
         } else if (this.functions[expr.name] !== expr.args.length) {
@@ -157,7 +161,7 @@ class SemanticAnalyzer {
         }
 
         for (const arg of expr.args) {
-          this.checkExpression(arg, allowvar);
+          this.checkExpression(arg, allowvar, allowall);
         }
         break;
       case ExpressionType.TableDefinition:
@@ -180,9 +184,9 @@ class SemanticAnalyzer {
       case BuiltinType.Print:
         for (const arg of stmt.args) {
           if (arg.type === ExpressionType.FunctionCall) {
-            this.checkExpression(arg, arg.args.length);
+            this.checkExpression(arg, arg.args.length, stmt.name === BuiltinType.Show);
           } else {
-            this.checkExpression(arg, []);
+            this.checkExpression(arg, [], stmt.name === BuiltinType.Show);
           }
         }
         break;
