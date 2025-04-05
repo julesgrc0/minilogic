@@ -46,8 +46,8 @@ type Token =
     };
 class Lexer {
   private pos: number = 0;
-  private line: number = 1;
-  private column: number = 1;
+  private line: number = 0;
+  private column: number = 0;
   private currentChar: string | null;
   private tokens: Record<number, Token> = {};
 
@@ -74,14 +74,15 @@ class Lexer {
     startPos: number,
     token: Omit<Token, "pos" | "line" | "column">
   ): Token {
-    const tok: any = {
+    
+    this.tokens[startPos] = {
       ...token,
       pos: startPos,
       line: this.line,
       column: this.column,
-    };
-    this.tokens[startPos] = tok;
-    return tok;
+    } as any;
+
+    return this.tokens[startPos];
   }
 
   private advance(): void {
@@ -142,6 +143,13 @@ class Lexer {
     });
   }
 
+  private skipComment(): void {
+    while (this.currentChar !== null && this.currentChar !== "\n") {
+      this.advance();
+    }
+  }
+
+
   public getTokenById(id: number): Token | undefined {
     return this.tokens[id];
   }
@@ -150,6 +158,12 @@ class Lexer {
     while (this.currentChar !== null) {
       if (/\s/.test(this.currentChar)) {
         this.skipWhitespace();
+        continue;
+      }
+      // handle comments "#"
+
+      if (this.currentChar === "#") {
+        this.skipComment();
         continue;
       }
 

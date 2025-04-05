@@ -6,7 +6,6 @@ import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
 import { Formatter } from "./language/formatter";
 
-
 const actionRunCode = () => {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== "minilogic") {
@@ -14,8 +13,11 @@ const actionRunCode = () => {
     return;
   }
 
+  const outputChannel = vscode.window.createOutputChannel("MiniLogic");
+  outputChannel.show(true);
+
   const fileName = path.basename(editor.document.fileName);
-  vscode.window.showInformationMessage(`🔥 Running ${fileName}`);
+  outputChannel.appendLine(`\n\n🔥 Running ${fileName}...`);
 
   const code = editor.document.getText();
   const lexer = new Lexer(code);
@@ -25,13 +27,26 @@ const actionRunCode = () => {
     const parser = new Parser(lexer);
     ast = parser.parseProgram();
   } catch (error) {
-    // TODO: diagnostic for parser error
+    outputChannel.appendLine(
+      "❌ Parser Error: Invalid syntax in MiniLogic code."
+    );
+    outputChannel.appendLine((error as any).message);
     return;
   }
 
   const semanticAnalyzer = new SemanticAnalyzer(ast);
   const errors = semanticAnalyzer.analyze();
   if (errors.length > 0) {
+    outputChannel.appendLine(
+      `❌ Semantic Error: Invalid MiniLogic code, found ${errors.length} error(s).`
+    );
+    for (const error of errors) {
+      if (error.position === -1) continue;
+      const token = lexer.getTokenById(error.position);
+
+      if (!token) continue;
+      outputChannel.appendLine(`  ${token.value}: ${error.message}`);
+    }
     return;
   }
 
@@ -39,13 +54,14 @@ const actionRunCode = () => {
   try {
     const interpreter = new Interpreter(ast);
     result = interpreter.run();
-  } catch {
-    // TODO: diagnostic for runtime error
+  } catch (error) {
+    outputChannel.appendLine("❌ Interpreter Error: Invalid MiniLogic code.");
+    outputChannel.appendLine((error as any).message);
     return;
   }
 
-  const outputChannel = vscode.window.createOutputChannel("MiniLogic");
-  outputChannel.show(true);
+  outputChannel.appendLine("✅ Execution completed successfully!");
+  outputChannel.appendLine("⚙️ Result:\n");
   outputChannel.append(result.join("\n"));
 };
 
@@ -74,25 +90,35 @@ const actionFormatCode = (document: vscode.TextDocument) => {
   return [vscode.TextEdit.replace(fullRange, formatted)];
 };
 
-const actionCodeUpdate = (event: vscode.TextDocumentChangeEvent) => {
-  if (event.document.languageId !== "minilogic") return;
+const actionCodeUpdate = (
+  event: vscode.TextDocumentChangeEvent | vscode.TextDocument
+) => {
+  const document: vscode.TextDocument = (event as any).document || event;
+  if (document.languageId !== "minilogic") return;
 
   const diagnostics: vscode.Diagnostic[] = [];
-  const code = event.document.getText();
+  const code = document.getText();
 
   const lexer = new Lexer(code);
   let ast: Statement[];
   try {
     const parser = new Parser(lexer);
     ast = parser.parseProgram();
-  } catch {
-    // TODO: diagnostic for parser error
+  } catch (error) {
+    diagnostics.push(
+      new vscode.Diagnostic(
+        new vscode.Range(0, 0, document.lineCount, 0),
+        `Parser Error: ${(error as Error).message}`,
+        vscode.DiagnosticSeverity.Error
+      )
+    );
+    diagnosticCollection.set(document.uri, diagnostics);
     return;
   }
 
   const errors = new SemanticAnalyzer(ast).analyze();
   for (const err of errors) {
-    if(err.position === -1) continue;
+    if (err.position === -1) continue;
 
     const token = lexer.getTokenById(err.position);
     if (!token) continue;
@@ -103,15 +129,11 @@ const actionCodeUpdate = (event: vscode.TextDocumentChangeEvent) => {
     );
 
     diagnostics.push(
-      new vscode.Diagnostic(
-        range,
-        err.message,
-        vscode.DiagnosticSeverity.Error 
-      )
+      new vscode.Diagnostic(range, err.message, vscode.DiagnosticSeverity.Error)
     );
   }
 
-  diagnosticCollection.set(event.document.uri, diagnostics);
+  diagnosticCollection.set(document.uri, diagnostics);
 };
 
 export function activate(context: vscode.ExtensionContext) {
@@ -129,10 +151,12 @@ export function activate(context: vscode.ExtensionContext) {
 
   const changeWatcher =
     vscode.workspace.onDidChangeTextDocument(actionCodeUpdate);
-
-
-  // TODO: with optimizer class
+  const loadWatcher = vscode.workspace.onDidOpenTextDocument(actionCodeUpdate);
   
+  vscode.workspace.textDocuments.forEach((doc) => actionCodeUpdate(doc));
+  
+  // TODO: with optimizer class
+
   // const codeActionProvider = vscode.languages.registerCodeActionsProvider(
   //   "minilogic",
   //   {
@@ -171,6 +195,7 @@ export function activate(context: vscode.ExtensionContext) {
     runCommand,
     formatProvider,
     changeWatcher,
+    loadWatcher
     // codeActionProvider
   );
 }
