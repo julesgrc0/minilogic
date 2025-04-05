@@ -32,16 +32,24 @@ type Token =
       type: TokenType;
       value: string;
       pos: number;
+
+      line: number;
+      column: number;
     }
   | {
       type: "Operator";
       value: Operators;
       pos: number;
-    };
 
+      line: number;
+      column: number;
+    };
 class Lexer {
   private pos: number = 0;
+  private line: number = 1;
+  private column: number = 1;
   private currentChar: string | null;
+  private tokens: Record<number, Token> = {};
 
   private keywords = new Set(["PRINT", "SHOW", "TABLE", "GRAPH"]);
   private operators = new Set([
@@ -58,18 +66,32 @@ class Lexer {
     "nequal",
   ]);
 
-  private tokens: Record<number, Token> = {};
-
   constructor(private input: string) {
     this.currentChar = input.charAt(0);
   }
 
-  private pushToken(pos: number, token: Omit<Token, "pos">): Token {
-    this.tokens[pos] = { ...token, pos: this.pos } as Token;
-    return this.tokens[pos];
+  private pushToken(
+    startPos: number,
+    token: Omit<Token, "pos" | "line" | "column">
+  ): Token {
+    const tok: any = {
+      ...token,
+      pos: startPos,
+      line: this.line,
+      column: this.column,
+    };
+    this.tokens[startPos] = tok;
+    return tok;
   }
 
-  private advance() {
+  private advance(): void {
+    if (this.currentChar === "\n") {
+      this.line += 1;
+      this.column = 1;
+    } else {
+      this.column += 1;
+    }
+
     this.pos++;
     this.currentChar =
       this.pos < this.input.length ? this.input.charAt(this.pos) : null;
@@ -83,32 +105,38 @@ class Lexer {
 
   private number(): Token {
     let result = "";
+    const startPos = this.pos;
+    const startCol = this.column;
     while (this.currentChar !== null && /[01]/.test(this.currentChar)) {
       result += this.currentChar;
       this.advance();
     }
-    return this.pushToken(this.pos, { type: TokenType.Number, value: result });
+    return this.pushToken(startPos, { type: TokenType.Number, value: result });
   }
 
   private identifier(): Token {
     let result = "";
+    const startPos = this.pos;
+    const startCol = this.column;
     while (this.currentChar !== null && /[A-Za-z]/.test(this.currentChar)) {
       result += this.currentChar;
       this.advance();
     }
+
     if (this.keywords.has(result.toUpperCase())) {
-      return this.pushToken(this.pos, {
+      return this.pushToken(startPos, {
         type: TokenType.Keyword,
         value: result.toUpperCase(),
       });
     }
     if (this.operators.has(result.toLowerCase())) {
-      return this.pushToken(this.pos, {
+      return this.pushToken(startPos, {
         type: TokenType.Operator,
         value: result.toLowerCase() as Operators,
       });
     }
-    return this.pushToken(this.pos, {
+
+    return this.pushToken(startPos, {
       type: TokenType.Identifier,
       value: result,
     });
@@ -125,57 +153,55 @@ class Lexer {
         continue;
       }
 
-      if (/[A-Za-z]/.test(this.currentChar)) {
-        return this.identifier();
-      }
+      if (/[A-Za-z]/.test(this.currentChar)) return this.identifier();
+      if (/[01]/.test(this.currentChar)) return this.number();
 
-      if (/[01]/.test(this.currentChar)) {
-        return this.number();
-      }
+      const startPos = this.pos;
 
-      if (this.currentChar === "=") {
-        this.advance();
-        return this.pushToken(this.pos, { type: TokenType.Equals, value: "=" });
-      }
-
-      if (this.currentChar === "(") {
-        this.advance();
-        return this.pushToken(this.pos, { type: TokenType.LParen, value: "(" });
-      }
-
-      if (this.currentChar === ")") {
-        this.advance();
-        return this.pushToken(this.pos, { type: TokenType.RParen, value: ")" });
-      }
-
-      if (this.currentChar === ",") {
-        this.advance();
-        return this.pushToken(this.pos, { type: TokenType.Comma, value: "," });
-      }
-
-      if (this.currentChar === "*") {
-        this.advance();
-        return this.pushToken(this.pos, { type: TokenType.Star, value: "*" });
-      }
-
-      if (this.currentChar === "[") {
-        this.advance();
-        return this.pushToken(this.pos, {
-          type: TokenType.LBracket,
-          value: "[",
-        });
-      }
-
-      if (this.currentChar === "]") {
-        this.advance();
-        return this.pushToken(this.pos, {
-          type: TokenType.RBracket,
-          value: "]",
-        });
+      switch (this.currentChar) {
+        case "=":
+          this.advance();
+          return this.pushToken(startPos, {
+            type: TokenType.Equals,
+            value: "=",
+          });
+        case "(":
+          this.advance();
+          return this.pushToken(startPos, {
+            type: TokenType.LParen,
+            value: "(",
+          });
+        case ")":
+          this.advance();
+          return this.pushToken(startPos, {
+            type: TokenType.RParen,
+            value: ")",
+          });
+        case ",":
+          this.advance();
+          return this.pushToken(startPos, {
+            type: TokenType.Comma,
+            value: ",",
+          });
+        case "*":
+          this.advance();
+          return this.pushToken(startPos, { type: TokenType.Star, value: "*" });
+        case "[":
+          this.advance();
+          return this.pushToken(startPos, {
+            type: TokenType.LBracket,
+            value: "[",
+          });
+        case "]":
+          this.advance();
+          return this.pushToken(startPos, {
+            type: TokenType.RBracket,
+            value: "]",
+          });
       }
 
       throw new Error(
-        `Unexpected character '${this.currentChar}' at position ${this.pos}`
+        `Unexpected character '${this.currentChar}' at line ${this.line}, column ${this.column}`
       );
     }
 

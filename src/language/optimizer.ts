@@ -48,21 +48,6 @@ class ExpressionOptimizer {
       return { ...expr, left, right };
     }
 
-    if (
-      expr.type === ExpressionType.UnaryExpression &&
-      expr.operator === Operators.Not
-    ) {
-      const subExpr = this.removeDeadCode(expr.operand);
-
-      if (
-        subExpr.type === ExpressionType.UnaryExpression &&
-        subExpr.operator === Operators.Not
-      ) {
-        return subExpr.operand;
-      }
-
-      return { ...expr, operand: subExpr };
-    }
 
     return expr;
   }
@@ -158,7 +143,9 @@ class ExpressionOptimizer {
 // }
 
 // https://en.wikipedia.org/wiki/Boolean_algebra
-const main = () => {
+
+/*
+const test1 = () => {
   const program = `
         A = not not not not not B
         A = 1 or A and 0
@@ -178,4 +165,77 @@ const main = () => {
   console.log("After optimization:\n", after);
 };
 
-main();
+test1();
+
+const test2 = () => {
+  const program0 = `
+          A = not not not not not B
+          A = 1 or A and 0
+          B = 0 and C*
+          B = (B and C) or (C and B) and C*
+
+          F(x, y) = x or z and G(not J)
+          F = 1
+          X = F(A, B or B, C)
+          X() = A
+          Y(A, B) = [
+            001, 1
+            11, 1
+            11, 0
+          ]
+
+          PRINT(A or B and C, Y(0, 1))
+          GRAPH(F, B)
+      `;
+  const program1 = `
+        B = (1 or 0) and 1
+        PRINT(B)
+
+        G(A, B) = A xor B and 1
+        F(A) = A and B* or G(A, A xor not A)
+        PRINT(F(1))
+        PRINT(F(0)) 
+        SHOW(F(0))
+        `;
+  const program = `
+    F(A, B) = [
+      00, 0
+      01, 1
+      10, 0
+      11, 1
+    ]
+
+    SHOW(F(A, B))
+  `;
+
+  const lexer = new Lexer(program0);
+
+  let ast: Statement[];
+
+  try {
+    const parser = new Parser(lexer);
+    ast = parser.parseProgram();
+  } catch (e) {
+    console.error("Error parsing program: ", (e as Error).message);
+    return;
+  }
+  const analyzer = new SemanticAnalyzer(ast);
+  const errors = analyzer.analyze();
+
+  if (errors.length > 0) {
+    for (const error of errors) {
+      const token = lexer.getTokenById(error.position);
+
+      console.error(
+        `Error at position ${error.position} (${token?.value} ${token?.type}):  ${error.message}`
+      );
+    }
+  } else {
+    const interpreter = new Interpreter(ast);
+    const output = interpreter.run();
+    console.log(output.join("\n"));
+  }
+};
+
+test2();
+*/
