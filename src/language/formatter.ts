@@ -62,6 +62,8 @@ class Formatter {
         return `${expr.name}(${expr.args
           .map((arg) => this.formatExpression(arg))
           .join(", ")})`;
+      case ExpressionType.BuiltinCall:
+        return `${expr.name.toUpperCase()}(${this.formatExpression(expr.operand)})`;
       case ExpressionType.TableDefinition:
         return `[\n${expr.rows
           .map(

@@ -51,7 +51,7 @@ class Lexer {
   private currentChar: string | null;
   private tokens: Record<number, Token> = {};
 
-  private keywords = new Set(["PRINT", "SHOW", "TABLE", "GRAPH"]);
+  private keywords = new Set(["PRINT", "SHOW", "TABLE", "GRAPH", "EXPORT", "TO_NAND", "TO_NOR", "SIMPLIFY"]);
   private operators = new Set([
     "not",
     "and",

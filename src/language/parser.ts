@@ -12,6 +12,7 @@ enum ExpressionType {
   Variable = "Variable",
   Number = "Number",
   FunctionCall = "FunctionCall",
+  BuiltinCall = "BuiltinCall",
   TableDefinition = "TableDefinition",
 }
 
@@ -20,7 +21,13 @@ enum BuiltinType {
   Show = "SHOW",
   Table = "TABLE",
   Graph = "GRAPH",
+  Export = "EXPORT",
+  ToNand = "TO_NAND",
+  ToNor = "TO_NOR",
+  Simplify = "SIMPLIFY",
 }
+
+const builtinFunctions: BuiltinType[] = [BuiltinType.ToNand, BuiltinType.ToNor, BuiltinType.Simplify];
 
 type BinaryNumber = 0 | 1;
 type BinaryVarNumber = BinaryNumber | "X";
@@ -76,6 +83,11 @@ type ExpressionCase =
   | {
       type: ExpressionType.TableDefinition;
       rows: TableRow[];
+    }
+  | {
+      type: ExpressionType.BuiltinCall;
+      name: BuiltinType;
+      operand: Expression;
     };
 
 type Statement = {
@@ -85,6 +97,13 @@ type Statement = {
 type Expression = {
   id: number;
 } & ExpressionCase;
+
+class ParserError extends Error {
+  public constructor(public position: number, message: string) {
+    super(message);
+    this.name = "ParserError";
+  }
+}
 
 class Parser {
   private currentToken: Token;
@@ -99,8 +118,11 @@ class Parser {
       this.currentToken = this.lexer.getNextToken();
       return prevToken;
     } else {
-      throw new Error(
-        `Unexpected token ${this.currentToken.value} at pos ${this.currentToken.pos}, expected ${tokenType}`
+      throw new ParserError(
+        this.currentToken.pos,
+        `Unexpected token ${
+          this.currentToken.value
+        }, expected ${tokenType.toLowerCase()}`
       );
     }
   }
@@ -159,7 +181,10 @@ class Parser {
         expression: expr,
       };
     }
-    throw new Error(`Invalid statement starting with token ${token.value}`);
+    throw new ParserError(
+      token.pos,
+      `Invalid statement starting with token ${token.value}`
+    );
   }
 
   private parseTableDefinition(): Expression {
@@ -176,7 +201,10 @@ class Parser {
         const bits = this.currentToken.value.split("");
         for (const bit of bits) {
           if (bit !== "0" && bit !== "1") {
-            throw new Error(`Invalid binary number ${this.currentToken.value}`);
+            throw new ParserError(
+              this.currentToken.pos,
+              `Invalid binary number ${this.currentToken.value}`
+            );
           }
           currentInput.push({
             value: parseInt(bit) as BinaryNumber,
@@ -192,7 +220,10 @@ class Parser {
       if ((this.currentToken.type as TokenType) === TokenType.Number) {
         const bit = this.currentToken.value;
         if (bit !== "0" && bit !== "1" && bit !== "X") {
-          throw new Error(`Invalid binary number ${this.currentToken.value}`);
+          throw new ParserError(
+            this.currentToken.pos,
+            `Invalid binary number ${this.currentToken.value}`
+          );
         }
         output.push((bit === "X" ? "X" : parseInt(bit)) as BinaryVarNumber);
         this.eat(TokenType.Number);
@@ -203,7 +234,8 @@ class Parser {
         output.push("X");
         this.eat(TokenType.Identifier);
       } else {
-        throw new Error(
+        throw new ParserError(
+          this.currentToken.pos,
           `Unexpected token ${this.currentToken.value} in truth table`
         );
       }
@@ -297,7 +329,8 @@ class Parser {
         token.value.length !== 1 ||
         (token.value !== "0" && token.value !== "1")
       ) {
-        throw new Error(
+        throw new ParserError(
+          token.pos,
           `Invalid binary number ${token.value} at pos ${token.pos}`
         );
       }
@@ -352,12 +385,30 @@ class Parser {
       return expr;
     }
 
-    throw new Error(`Unexpected token ${token.value} in expression`);
+    if (token.type === TokenType.Keyword) {
+      this.eat(TokenType.Keyword);
+      this.eat(TokenType.LParen);
+      const operand = this.parseExpression();
+      this.eat(TokenType.RParen);
+
+      return {
+        id: token.pos,
+        type: ExpressionType.BuiltinCall,
+        name: token.value as BuiltinType,
+        operand,
+      };
+    }
+
+    throw new ParserError(
+      token.pos,
+      `Unexpected token ${token.value} in expression`
+    );
   }
 }
 
 export {
   Parser,
+  ParserError,
   BuiltinType,
   StatementType,
   Statement,
@@ -366,4 +417,6 @@ export {
   TableRow,
   BinaryNumber,
   BinaryVarNumber,
+
+  builtinFunctions
 };

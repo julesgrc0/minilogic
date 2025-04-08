@@ -57,7 +57,8 @@ class ExpressionOptimizer {
       case ExpressionType.Number:
       case ExpressionType.Variable:
         return expr.id;
-      case ExpressionType.UnaryExpression:
+        case ExpressionType.BuiltinCall:
+        case ExpressionType.UnaryExpression:
         return this.getExpressionEndId(expr.operand);
       case ExpressionType.BinaryExpression:
         return Math.max(

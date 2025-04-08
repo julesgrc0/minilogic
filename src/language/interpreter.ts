@@ -105,11 +105,12 @@ class Interpreter {
       case BuiltinType.Table:
         // TODO: Implement table logic
         break;
+      case BuiltinType.Export:
+        // TODO: Implement export logic
+        break;
+      default:
+        throw new Error(`Unexpected builtin function: ${stmt.name}`);
     }
-  }
-
-  private evalExpressionToTable(expr: Expression) {
-
   }
 
   private evalExpressionToString(
@@ -197,6 +198,8 @@ class Interpreter {
           replacement,
           allowall
         )}`;
+      case ExpressionType.BuiltinCall:
+        throw new Error("NOT IMPLEMENTED: TODO")
       case ExpressionType.TableDefinition:
         throw new Error("TableDefinition cannot be evaluated directly");
     }
@@ -238,6 +241,8 @@ class Interpreter {
       }
       case ExpressionType.FunctionCall:
         return this.evalFunctionCall(expr, localVariables);
+      case ExpressionType.BuiltinCall:
+        throw new Error("NOT IMPLEMENTED: TODO")
       case ExpressionType.TableDefinition:
         throw new Error("TableDefinition cannot be evaluated directly");
     }

@@ -4,6 +4,7 @@ import {
   StatementType,
   ExpressionType,
   BuiltinType,
+  builtinFunctions,
 } from "./parser";
 
 type SemanticError = {
@@ -116,6 +117,13 @@ class SemanticAnalyzer {
         this.checkExpression(expr.left, allowvar, allowall);
         this.checkExpression(expr.right, allowvar, allowall);
         break;
+      case ExpressionType.BuiltinCall:
+        if (!builtinFunctions.includes(expr.name))
+        {
+          this.pushError(expr.id, `Invalid usage of builtin function ${expr.name}, can't be used in expressions`);
+          return;
+        }
+        this.checkExpression(expr.operand, allowvar, allowall);
       case ExpressionType.UnaryExpression:
         this.checkExpression(expr.operand, allowvar, allowall);
         break;
@@ -196,7 +204,14 @@ class SemanticAnalyzer {
           this.pushError(stmt.id, `Graph function must have 1 argument`);
         }
         break;
+
       case BuiltinType.Table:
+      case BuiltinType.Export:
+        break;
+      case BuiltinType.Simplify:
+      case BuiltinType.ToNand:
+      case BuiltinType.ToNor:
+        this.pushError(stmt.id, `Invalid usage of builtin function ${stmt.name}, can't be used in statements`);
         break;
     }
   }

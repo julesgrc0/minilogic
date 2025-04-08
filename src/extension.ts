@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { Lexer } from "./language/lexer";
-import { Parser, Statement } from "./language/parser";
+import { Parser, ParserError, Statement } from "./language/parser";
 import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
 import { Formatter } from "./language/formatter";
@@ -30,7 +30,7 @@ const actionRunCode = () => {
     outputChannel.appendLine(
       "❌ Parser Error: Invalid syntax in MiniLogic code."
     );
-    outputChannel.appendLine((error as any).message);
+    outputChannel.appendLine((error as ParserError).message);
     return;
   }
 
@@ -100,11 +100,29 @@ const actionCodeUpdate = (
   try {
     const parser = new Parser(lexer);
     ast = parser.parseProgram();
-  } catch (error) {
+  } catch (err) {
+    const error = err as ParserError;
+    const token = lexer.getTokenById(error.position);
+    if (!token) {
+      diagnostics.push(
+        new vscode.Diagnostic(
+          new vscode.Range(0, 0, document.lineCount, 0),
+          `Parser Error: ${error.message}`,
+          vscode.DiagnosticSeverity.Error
+        )
+      );
+      return;
+    }
+
+    const range = new vscode.Range(
+      new vscode.Position(token.line, 0),
+      document.lineAt(token.line).range.end
+    );
+
     diagnostics.push(
       new vscode.Diagnostic(
-        new vscode.Range(0, 0, document.lineCount, 0),
-        `Parser Error: ${(error as Error).message}`,
+        range,
+        error.message,
         vscode.DiagnosticSeverity.Error
       )
     );
@@ -120,8 +138,8 @@ const actionCodeUpdate = (
     if (!token) continue;
 
     const range = new vscode.Range(
-      new vscode.Position(token.line, token.column),
-      new vscode.Position(token.line, token.column + token.value.length)
+      new vscode.Position(token.line, 0),
+      document.lineAt(token.line).range.end
     );
 
     diagnostics.push(
@@ -148,7 +166,7 @@ export function activate(context: vscode.ExtensionContext) {
   const changeWatcher =
     vscode.workspace.onDidChangeTextDocument(actionCodeUpdate);
   const loadWatcher = vscode.workspace.onDidOpenTextDocument(actionCodeUpdate);
-  
+
   vscode.workspace.textDocuments.forEach((doc) => actionCodeUpdate(doc));
 
   // TODO: with optimizer class
