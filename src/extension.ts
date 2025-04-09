@@ -1,10 +1,11 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { Lexer } from "./language/lexer";
-import { Parser } from "./language/parser";
+import { Parser, Statement } from "./language/parser";
 import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
 import { Formatter } from "./language/formatter";
+
 
 const actionRunCode = () => {
   const editor = vscode.window.activeTextEditor;
@@ -39,8 +40,8 @@ const actionRunCode = () => {
 
   let result: string[];
   try {
-    const interpreter = new Interpreter(ast);
-    result = interpreter.run();
+    
+    result = new Interpreter(ast).run();
   } catch (error) {
     outputChannel.appendLine("❌ Interpreter Error: Invalid MiniLogic code.");
     outputChannel.appendLine((error as any).message);
@@ -58,13 +59,13 @@ const actionFormatCode = (document: vscode.TextDocument) => {
 
   const text = document.getText();
   const lexer = new Lexer(text);
-
   const parser = new Parser(lexer);
+
   const ast = parser.parseProgram();
-  console.log(lexer.getComments());
+
   let formatted: string;
   try {
-    formatted = new Formatter(ast, lexer.getComments()).format();
+    formatted = new Formatter(ast).format();
   } catch {
     vscode.window.showErrorMessage(
       "❌ Formatter Error: Invalid syntax in MiniLogic code."
@@ -105,18 +106,51 @@ const actionCodeUpdate = (
       document.lineAt(token.line).range.end
     );
 
-    diagnostics.push(
-      new vscode.Diagnostic(range, err.message, vscode.DiagnosticSeverity.Error)
+    const diag = new vscode.Diagnostic(
+      range,
+      err.message,
+      vscode.DiagnosticSeverity.Error
     );
+    diag.code = err.fixId;
+    diagnostics.push(diag);
   }
 
   diagnosticCollection.set(document.uri, diagnostics);
 };
 
+const actionQuickFix = (
+  document: vscode.TextDocument,
+  range: vscode.Range | vscode.Selection,
+  context: vscode.CodeActionContext
+) => {
+  const fixes: vscode.CodeAction[] = [];
+
+  // for (const diag of context.diagnostics) {
+  //   if (diagnostic.message.includes("undefined function")) {
+  //     const fix = new vscode.CodeAction(
+  //       "💡 Create stub for function",
+  //       vscode.CodeActionKind.QuickFix
+  //     );
+  //     fix.edit = new vscode.WorkspaceEdit();
+  //     const insertLine = document.lineCount;
+  //     const fnName = document.getText(diagnostic.range);
+  //     fix.edit.insert(
+  //       document.uri,
+  //       new vscode.Position(insertLine, 0),
+  //       `\n${fnName}(A) = 0\n`
+  //     );
+  //     fix.diagnostics = [diagnostic];
+  //     fix.isPreferred = true;
+  //     fixes.push(fix);
+  //   }
+  // }
+
+  return fixes;
+};
+
 export function activate(context: vscode.ExtensionContext) {
   console.log("🔥 MiniLogic Extension Activated!");
 
-  
   const runCommand = vscode.commands.registerCommand(
     "minilogic.runCode",
     actionRunCode
@@ -133,50 +167,23 @@ export function activate(context: vscode.ExtensionContext) {
 
   vscode.workspace.textDocuments.forEach((doc) => actionCodeUpdate(doc));
 
-  // TODO: with optimizer class
-
-  // const codeActionProvider = vscode.languages.registerCodeActionsProvider(
-  //   "minilogic",
-  //   {
-  //     provideCodeActions(document, range, context) {
-  //       const fixes: vscode.CodeAction[] = [];
-
-  //       for (const diagnostic of context.diagnostics) {
-  //         if (diagnostic.message.includes("undefined function")) {
-  //           const fix = new vscode.CodeAction(
-  //             "💡 Create stub for function",
-  //             vscode.CodeActionKind.QuickFix
-  //           );
-  //           fix.edit = new vscode.WorkspaceEdit();
-  //           const insertLine = document.lineCount;
-  //           const fnName = document.getText(diagnostic.range);
-  //           fix.edit.insert(
-  //             document.uri,
-  //             new vscode.Position(insertLine, 0),
-  //             `\n${fnName}(A) = 0\n`
-  //           );
-  //           fix.diagnostics = [diagnostic];
-  //           fix.isPreferred = true;
-  //           fixes.push(fix);
-  //         }
-  //       }
-
-  //       return fixes;
-  //     },
-  //   },
-  //   {
-  //     providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
-  //   }
-  // );
+  const codeActionProvider = vscode.languages.registerCodeActionsProvider(
+    "minilogic",
+    {
+      provideCodeActions: actionQuickFix,
+    },
+    {
+      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
+    }
+  );
 
   context.subscriptions.push(
     runCommand,
     formatProvider,
     changeWatcher,
-    loadWatcher
-    // codeActionProvider
+    loadWatcher,
+    codeActionProvider
   );
-
 }
 
 const diagnosticCollection =

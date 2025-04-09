@@ -119,7 +119,6 @@ class Interpreter {
     replaceVar: Map<string, string> = new Map(),
     allowall: boolean = false
   ): string {
-    console.log(expr)
     switch (expr.type) {
       case ExpressionType.Number:
         return expr.value.toString();

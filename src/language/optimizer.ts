@@ -136,8 +136,9 @@ const test1 = () => {
   const ast = parser.parseProgram();
 
   const optimizer = new ExpressionOptimizer(ast);
-  
-  console.log(new Formatter(optimizer.optimize(), lexer.getComments()).format())
+  const formatter = new Formatter(optimizer.optimize());
+
+  console.log(formatter.format())
 };
 
 test1();

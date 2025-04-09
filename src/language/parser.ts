@@ -4,6 +4,7 @@ enum StatementType {
   Assignment = "Assignment",
   FunctionDefinition = "FunctionDefinition",
   BuiltinCall = "BuiltinCall",
+  Comment = "Comment",
 }
 
 enum ExpressionType {
@@ -62,6 +63,10 @@ type StatementCase =
       type: StatementType.BuiltinCall;
       name: BuiltinType;
       args: Expression[];
+    }
+  | {
+      type: StatementType.Comment;
+      comment: string;
     }
   | ErrorCase;
 
@@ -146,7 +151,7 @@ class Parser {
     while (this.currentToken.type !== TokenType.EOF) {
       let stmt: Statement;
       try {
-        if(hasError) {
+        if (hasError) {
           this.currentToken = this.lexer.getNextToken();
           hasError = false;
         }
@@ -158,8 +163,10 @@ class Parser {
         hasError = true;
       }
 
+      console.log(stmt);
       statements.push(stmt);
     }
+
     return statements;
   }
 
@@ -168,6 +175,15 @@ class Parser {
       return this.parseBuiltinCall();
     }
 
+    if (this. currentToken.type === TokenType.Comment) {
+      const token = this.eat(TokenType.Comment);
+      return {
+        id: token.pos,
+        type: StatementType.Comment,
+        comment: token.value,
+      };
+    }
+    
     const token = this.currentToken;
     this.eat(TokenType.Identifier);
 

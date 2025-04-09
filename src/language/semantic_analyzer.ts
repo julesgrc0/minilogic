@@ -10,17 +10,44 @@ import {
 type SemanticError = {
   position: number;
   message: string;
+  fixId: number;
 };
 
 class SemanticAnalyzer {
   private variables: Set<string> = new Set<string>();
   private functions: Record<string, number> = {};
   private errors: SemanticError[] = [];
+  private errorFixes: Record<number, object> = {};
 
   public constructor(private ast: Statement[]) {}
 
-  private pushError(position: number, message: string): void {
-    this.errors.push({ position, message });
+  private createErrorFix(id: number, fix: object) {
+    this.errorFixes[id] = fix;
+    return id;
+  }
+
+  private pushError(
+    position: number,
+    message: string,
+    fixId: number = -1
+  ): void {
+    this.errors.push({ position, message, fixId });
+  }
+
+  private proposeVarName(name: string): string {
+    let i = 1;
+    while (this.variables.has(name + "_" + i)) {
+      i++;
+    }
+    return name + "_" + i;
+  }
+
+  private proposeFuncName(name: string): string {
+    let i = 1;
+    while (this.functions.hasOwnProperty(name + "_" + i)) {
+      i++;
+    }
+    return name + "_" + i;
   }
 
   private checkVariable(stmt: Statement): void {
@@ -28,13 +55,23 @@ class SemanticAnalyzer {
 
     let error = false;
     if (this.variables.has(stmt.variable)) {
-      this.pushError(stmt.id, `Variable ${stmt.variable} already defined`);
+      this.pushError(
+        stmt.id,
+        `Variable ${stmt.variable} already defined`,
+        this.createErrorFix(stmt.id, {
+          variable: this.proposeVarName(stmt.variable),
+        })
+      );
       error = true;
     }
+
     if (this.functions.hasOwnProperty(stmt.variable)) {
       this.pushError(
         stmt.id,
-        `Ambiguous variable name ${stmt.variable}, already used as function`
+        `Ambiguous variable name ${stmt.variable}, already used as function`,
+        this.createErrorFix(stmt.id, {
+          variable: this.proposeVarName(stmt.variable),
+        })
       );
       error = true;
     }
@@ -52,18 +89,29 @@ class SemanticAnalyzer {
     let error = false;
 
     if (this.functions.hasOwnProperty(stmt.name)) {
-      this.pushError(stmt.id, `Function ${stmt.name} already defined`);
+      this.pushError(
+        stmt.id,
+        `Function ${stmt.name} already defined`,
+        this.createErrorFix(stmt.id, {
+          name: this.proposeFuncName(stmt.name),
+        })
+      );
       error = true;
     }
     if (this.variables.has(stmt.name)) {
       this.pushError(
         stmt.id,
-        `Ambiguous function name ${stmt.name}, already used as variable`
+        `Ambiguous function name ${stmt.name}, already used as variable`,
+        this.createErrorFix(stmt.id, {
+          name: this.proposeFuncName(stmt.name),
+        })
       );
       error = true;
     }
     if (stmt.parameters.length === 0) {
-      this.pushError(stmt.id, `Function ${stmt.name} has no parameters`);
+      this.pushError(stmt.id, `Function ${stmt.name} has no parameters`, this.createErrorFix(stmt.id, {
+        parameters: ["A"],
+      }));
       return;
     }
 
@@ -111,16 +159,22 @@ class SemanticAnalyzer {
     }
   }
 
-  private checkExpression(expr: Expression, allowvar: string[] | number, allowall: boolean = false): void {
+  private checkExpression(
+    expr: Expression,
+    allowvar: string[] | number,
+    allowall: boolean = false
+  ): void {
     switch (expr.type) {
       case ExpressionType.BinaryExpression:
         this.checkExpression(expr.left, allowvar, allowall);
         this.checkExpression(expr.right, allowvar, allowall);
         break;
       case ExpressionType.BuiltinCall:
-        if (!builtinFunctions.includes(expr.name))
-        {
-          this.pushError(expr.id, `Invalid usage of builtin function ${expr.name}, can't be used in expressions`);
+        if (!builtinFunctions.includes(expr.name)) {
+          this.pushError(
+            expr.id,
+            `Invalid usage of builtin function ${expr.name}, can't be used in expressions`
+          );
           return;
         }
         this.checkExpression(expr.operand, allowvar, allowall);
@@ -128,7 +182,7 @@ class SemanticAnalyzer {
         this.checkExpression(expr.operand, allowvar, allowall);
         break;
       case ExpressionType.Variable:
-        if(allowall) return;
+        if (allowall) return;
 
         if (typeof allowvar != "number" && allowvar.length > 0) {
           if (expr.reference && !this.variables.has(expr.name)) {
@@ -155,7 +209,7 @@ class SemanticAnalyzer {
         }
         break;
       case ExpressionType.FunctionCall:
-        if(allowall) return;
+        if (allowall) return;
 
         if (!this.functions.hasOwnProperty(expr.name)) {
           this.pushError(expr.id, `Function ${expr.name} not defined`);
@@ -195,7 +249,11 @@ class SemanticAnalyzer {
       case BuiltinType.Print:
         for (const arg of stmt.args) {
           if (arg.type === ExpressionType.FunctionCall) {
-            this.checkExpression(arg, arg.args.length, stmt.name === BuiltinType.Show);
+            this.checkExpression(
+              arg,
+              arg.args.length,
+              stmt.name === BuiltinType.Show
+            );
           } else {
             this.checkExpression(arg, [], stmt.name === BuiltinType.Show);
           }
@@ -214,7 +272,10 @@ class SemanticAnalyzer {
       case BuiltinType.Simplify:
       case BuiltinType.ToNand:
       case BuiltinType.ToNor:
-        this.pushError(stmt.id, `Invalid usage of builtin function ${stmt.name}, can't be used in statements`);
+        this.pushError(
+          stmt.id,
+          `Invalid usage of builtin function ${stmt.name}, can't be used in statements`
+        );
         break;
     }
   }

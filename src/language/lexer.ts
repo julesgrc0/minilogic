@@ -10,6 +10,7 @@ enum TokenType {
   RBracket = "RBracket",
   Operator = "Operator",
   Keyword = "Keyword",
+  Comment = "Comment",
   EOF = "EOF",
 }
 
@@ -50,7 +51,6 @@ class Lexer {
   private column: number = 0;
   private currentChar: string | null;
   private tokens: Record<number, Token> = {};
-  private comments: Record<number, string> = {};
 
   private keywords = new Set([
     "PRINT",
@@ -150,18 +150,14 @@ class Lexer {
     });
   }
 
-  private skipComment(): void {
-    const pos = this.pos;
-    
-    this.comments[pos] = this.comments[pos] || "";
+  private comment(): Token {
+    let result = "";
+    const startPos = this.pos;
     while (this.currentChar !== null && this.currentChar !== "\n") {
-      this.comments[pos] += this.currentChar;
+      result += this.currentChar;
       this.advance();
     }
-  }
-
-  public getComments(): Record<number, string> {
-    return this.comments;
+    return this.pushToken(startPos, { type: TokenType.Comment, value: result });
   }
 
   public getTokenById(id: number): Token | undefined {
@@ -174,11 +170,8 @@ class Lexer {
         this.skipWhitespace();
         continue;
       }
-      if (this.currentChar === "#") {
-        this.skipComment();
-        continue;
-      }
 
+      if (this.currentChar === "#") return this.comment();
       if (/[A-Za-z]/.test(this.currentChar)) return this.identifier();
       if (/[01]/.test(this.currentChar)) return this.number();
 
