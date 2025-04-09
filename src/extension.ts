@@ -177,6 +177,20 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  /*
+  TODO LIST:
+
+  - Add autocomplete for table definition, for example:
+      if the user types F(A, B) = [ when the "[" is typed the autecomplete generate the table filled with 0
+  - Add autocomplete for functions and variable
+  - Add autocomplete for variable reference and variable inside function
+  - Add autocomplete for builtin functions
+  - Show truth table when hover on function or on operators
+  - Add quick fix for errors
+  - Show warnings when the optimizer can optimize the code for example:
+      A or 1 = 1 so the optimizer higlight the expression and suggest to replace it with 1
+  */
+
   context.subscriptions.push(
     runCommand,
     formatProvider,
