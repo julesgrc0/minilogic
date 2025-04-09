@@ -17,13 +17,15 @@ class Formatter {
   }
 
   private formatStatement(stmt: Statement): string {
-    const newLine = this.lastStmt?.type !== stmt.type ? '\n' : '';
+    const newLine = this.lastStmt?.type !== stmt.type ? "\n" : "";
     this.lastStmt = stmt;
 
     switch (stmt.type) {
       case StatementType.Assignment:
-        return `${newLine}${stmt.variable} = ${this.formatExpression(stmt.expression)}`;
-    case StatementType.FunctionDefinition:
+        return `${newLine}${stmt.variable} = ${this.formatExpression(
+          stmt.expression
+        )}`;
+      case StatementType.FunctionDefinition:
         return `${newLine}${stmt.name}(${stmt.parameters.join(
           ", "
         )}) = ${this.formatExpression(stmt.expression)}`;
@@ -31,6 +33,8 @@ class Formatter {
         return `${newLine}${stmt.name.toUpperCase()}(${stmt.args
           .map((arg) => this.formatExpression(arg))
           .join(", ")})`;
+      case "Error":
+        throw new Error(`Error at ${stmt.id}: ${stmt.message}`);
     }
   }
 
@@ -63,7 +67,9 @@ class Formatter {
           .map((arg) => this.formatExpression(arg))
           .join(", ")})`;
       case ExpressionType.BuiltinCall:
-        return `${expr.name.toUpperCase()}(${this.formatExpression(expr.operand)})`;
+        return `${expr.name.toUpperCase()}(${this.formatExpression(
+          expr.operand
+        )})`;
       case ExpressionType.TableDefinition:
         return `[\n${expr.rows
           .map(
@@ -73,6 +79,8 @@ class Formatter {
               }`
           )
           .join("\n")}\n]`;
+      case "Error":
+        throw new Error(`Error at ${expr.id}: ${expr.message}`);
     }
   }
 }

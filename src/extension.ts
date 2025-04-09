@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { Lexer } from "./language/lexer";
-import { Parser, ParserError, Statement } from "./language/parser";
+import { Parser } from "./language/parser";
 import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
 import { Formatter } from "./language/formatter";
@@ -20,22 +20,13 @@ const actionRunCode = () => {
   outputChannel.appendLine(`\n\n🔥 Running ${fileName}...`);
 
   const code = editor.document.getText();
+
   const lexer = new Lexer(code);
+  const parser = new Parser(lexer);
 
-  let ast: Statement[];
-  try {
-    const parser = new Parser(lexer);
-    ast = parser.parseProgram();
-  } catch (error) {
-    outputChannel.appendLine(
-      "❌ Parser Error: Invalid syntax in MiniLogic code."
-    );
-    outputChannel.appendLine((error as ParserError).message);
-    return;
-  }
+  const ast = parser.parseProgram();
+  const errors = new SemanticAnalyzer(ast).analyze();
 
-  const semanticAnalyzer = new SemanticAnalyzer(ast);
-  const errors = semanticAnalyzer.analyze();
   if (errors.length > 0) {
     outputChannel.appendLine(
       `❌ Semantic Error: Invalid MiniLogic code, found ${errors.length} error(s) :`
@@ -53,6 +44,7 @@ const actionRunCode = () => {
   } catch (error) {
     outputChannel.appendLine("❌ Interpreter Error: Invalid MiniLogic code.");
     outputChannel.appendLine((error as any).message);
+    console.error(error);
     return;
   }
 
@@ -67,18 +59,19 @@ const actionFormatCode = (document: vscode.TextDocument) => {
   const text = document.getText();
   const lexer = new Lexer(text);
 
-  let ast: Statement[];
+  const parser = new Parser(lexer);
+  const ast = parser.parseProgram();
+
+  let formatted: string;
   try {
-    const parser = new Parser(lexer);
-    ast = parser.parseProgram();
+    formatted = new Formatter(ast).format();
   } catch {
     vscode.window.showErrorMessage(
-      "❌ Parser Error: Invalid syntax in MiniLogic code."
+      "❌ Formatter Error: Invalid syntax in MiniLogic code."
     );
     return;
   }
 
-  const formatted = new Formatter(ast).format();
   const fullRange = new vscode.Range(
     document.positionAt(0),
     document.positionAt(text.length)
@@ -96,41 +89,11 @@ const actionCodeUpdate = (
   const code = document.getText();
 
   const lexer = new Lexer(code);
-  let ast: Statement[];
-  try {
-    const parser = new Parser(lexer);
-    ast = parser.parseProgram();
-  } catch (err) {
-    const error = err as ParserError;
-    const token = lexer.getTokenById(error.position);
-    if (!token) {
-      diagnostics.push(
-        new vscode.Diagnostic(
-          new vscode.Range(0, 0, document.lineCount, 0),
-          `Parser Error: ${error.message}`,
-          vscode.DiagnosticSeverity.Error
-        )
-      );
-      return;
-    }
+  const parser = new Parser(lexer);
 
-    const range = new vscode.Range(
-      new vscode.Position(token.line, 0),
-      document.lineAt(token.line).range.end
-    );
-
-    diagnostics.push(
-      new vscode.Diagnostic(
-        range,
-        error.message,
-        vscode.DiagnosticSeverity.Error
-      )
-    );
-    diagnosticCollection.set(document.uri, diagnostics);
-    return;
-  }
-
+  const ast = parser.parseProgram();
   const errors = new SemanticAnalyzer(ast).analyze();
+
   for (const err of errors) {
     if (err.position === -1) continue;
 
@@ -153,6 +116,7 @@ const actionCodeUpdate = (
 export function activate(context: vscode.ExtensionContext) {
   console.log("🔥 MiniLogic Extension Activated!");
 
+  
   const runCommand = vscode.commands.registerCommand(
     "minilogic.runCode",
     actionRunCode
@@ -212,6 +176,7 @@ export function activate(context: vscode.ExtensionContext) {
     loadWatcher
     // codeActionProvider
   );
+
 }
 
 const diagnosticCollection =

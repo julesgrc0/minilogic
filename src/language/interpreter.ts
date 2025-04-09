@@ -7,6 +7,7 @@ import {
   BinaryNumber,
   Parser,
   BuiltinType,
+  builtinFunctions,
 } from "./parser";
 import { SemanticAnalyzer } from "./semantic_analyzer";
 
@@ -109,7 +110,7 @@ class Interpreter {
         // TODO: Implement export logic
         break;
       default:
-        throw new Error(`Unexpected builtin function: ${stmt.name}`);
+        throw new Error(`Invalid usage of builtin function: ${stmt.name}`);
     }
   }
 
@@ -118,6 +119,7 @@ class Interpreter {
     replaceVar: Map<string, string> = new Map(),
     allowall: boolean = false
   ): string {
+    console.log(expr)
     switch (expr.type) {
       case ExpressionType.Number:
         return expr.value.toString();
@@ -184,6 +186,10 @@ class Interpreter {
         }
 
         const replacement = new Map<string, string>();
+        if(func.parameters.length !== expr.args.length) {
+          throw new Error(`Function ${func.name} called with ${expr.args.length} arguments, expected ${func.parameters.length}`);
+        }
+
         for (let i = 0; i < func.parameters.length; i++) {
           replacement.set(
             func.parameters[i],
@@ -199,10 +205,16 @@ class Interpreter {
           allowall
         )}`;
       case ExpressionType.BuiltinCall:
-        throw new Error("NOT IMPLEMENTED: TODO")
+        return this.evalBuiltinFunctionCallToString(expr, replaceVar, allowall);
       case ExpressionType.TableDefinition:
         throw new Error("TableDefinition cannot be evaluated directly");
+      case "Error":
+        throw new Error(`ErrorCase: ${expr.message}`);
     }
+  }
+
+  private evalBuiltinFunctionCallToString(expr: Expression, replaceVar: Map<string, string>, allowall: boolean): string {
+    return "";
   }
 
   private evalExpression(
@@ -241,10 +253,13 @@ class Interpreter {
       }
       case ExpressionType.FunctionCall:
         return this.evalFunctionCall(expr, localVariables);
-      case ExpressionType.BuiltinCall:
-        throw new Error("NOT IMPLEMENTED: TODO")
+      case ExpressionType.BuiltinCall: {
+        return this.evalBuiltinFunctionCall(expr, localVariables);
+      }
       case ExpressionType.TableDefinition:
         throw new Error("TableDefinition cannot be evaluated directly");
+      case "Error":
+        throw new Error(`ErrorCase: ${expr.message}`);
     }
   }
 
@@ -289,6 +304,26 @@ class Interpreter {
 
       default:
         throw new Error(`Unsupported binary operator: ${op}`);
+    }
+  }
+
+  private evalBuiltinFunctionCall(
+    expr: Expression,
+    parentLocalVar: Map<string, BinaryNumber>
+  ): BinaryNumber {
+    if (expr.type !== ExpressionType.BuiltinCall) {
+      throw new Error(`Expected BuiltinCall, got ${expr.type}`);
+    }
+
+    switch (expr.name) {
+      case BuiltinType.ToNand:
+        return this.evalExpression(expr.operand, parentLocalVar);
+      case BuiltinType.ToNor:
+        return this.evalExpression(expr.operand, parentLocalVar);
+      case BuiltinType.Simplify:
+        return this.evalExpression(expr.operand, parentLocalVar);
+      default:
+        throw new Error(`Invalid usage of builtin function: ${expr.name}`);
     }
   }
 

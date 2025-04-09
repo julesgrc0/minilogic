@@ -48,7 +48,6 @@ class ExpressionOptimizer {
       return { ...expr, left, right };
     }
 
-
     return expr;
   }
 
@@ -57,8 +56,8 @@ class ExpressionOptimizer {
       case ExpressionType.Number:
       case ExpressionType.Variable:
         return expr.id;
-        case ExpressionType.BuiltinCall:
-        case ExpressionType.UnaryExpression:
+      case ExpressionType.BuiltinCall:
+      case ExpressionType.UnaryExpression:
         return this.getExpressionEndId(expr.operand);
       case ExpressionType.BinaryExpression:
         return Math.max(
@@ -69,12 +68,13 @@ class ExpressionOptimizer {
         const ids = expr.args.map((arg) => this.getExpressionEndId(arg));
         return Math.max(expr.id, ...ids);
       case ExpressionType.TableDefinition:
-        const last = expr.rows[expr.rows.length - 1]
-        
+        const last = expr.rows[expr.rows.length - 1];
         return last.input[0][last.input[0].length - 1].id;
+      case "Error":
+        return expr.id;
     }
   }
-  
+
   private regroupExpressions(expr: Expression): Expression {
     if (
       expr.type === ExpressionType.UnaryExpression &&

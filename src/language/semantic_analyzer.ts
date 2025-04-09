@@ -181,6 +181,9 @@ class SemanticAnalyzer {
         break;
       case ExpressionType.Number:
         break;
+      case "Error":
+        this.pushError(expr.id, expr.message);
+        break;
     }
   }
 
@@ -227,6 +230,9 @@ class SemanticAnalyzer {
           break;
         case StatementType.BuiltinCall:
           this.checkBuiltin(stmt);
+          break;
+        case "Error":
+          this.pushError(stmt.id, stmt.message);
           break;
       }
     }

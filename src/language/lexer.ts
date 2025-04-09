@@ -51,7 +51,16 @@ class Lexer {
   private currentChar: string | null;
   private tokens: Record<number, Token> = {};
 
-  private keywords = new Set(["PRINT", "SHOW", "TABLE", "GRAPH", "EXPORT", "TO_NAND", "TO_NOR", "SIMPLIFY"]);
+  private keywords = new Set([
+    "PRINT",
+    "SHOW",
+    "TABLE",
+    "GRAPH",
+    "EXPORT",
+    "TO_NAND",
+    "TO_NOR",
+    "SIMPLIFY",
+  ]);
   private operators = new Set([
     "not",
     "and",
@@ -74,7 +83,6 @@ class Lexer {
     startPos: number,
     token: Omit<Token, "pos" | "line" | "column">
   ): Token {
-    
     this.tokens[startPos] = {
       ...token,
       pos: startPos,
@@ -118,8 +126,7 @@ class Lexer {
   private identifier(): Token {
     let result = "";
     const startPos = this.pos;
-    const startCol = this.column;
-    while (this.currentChar !== null && /[A-Za-z]/.test(this.currentChar)) {
+    while (this.currentChar !== null && /[A-Za-z_]/.test(this.currentChar)) {
       result += this.currentChar;
       this.advance();
     }
@@ -149,25 +156,22 @@ class Lexer {
     }
   }
 
-
   public getTokenById(id: number): Token | undefined {
     return this.tokens[id];
   }
 
-  public getNextToken(): Token {
+  public getNextToken(noerror = false): Token {
     while (this.currentChar !== null) {
       if (/\s/.test(this.currentChar)) {
         this.skipWhitespace();
         continue;
       }
-      // handle comments "#"
-
       if (this.currentChar === "#") {
         this.skipComment();
         continue;
       }
 
-      if (/[A-Za-z]/.test(this.currentChar)) return this.identifier();
+      if (/[A-Za-z_]/.test(this.currentChar)) return this.identifier();
       if (/[01]/.test(this.currentChar)) return this.number();
 
       const startPos = this.pos;
@@ -214,6 +218,10 @@ class Lexer {
           });
       }
 
+      if (noerror) {
+        return this.pushToken(this.pos, { type: TokenType.EOF, value: "" });
+      }
+      
       throw new Error(
         `Unexpected character '${this.currentChar}' at line ${this.line}, column ${this.column}`
       );
