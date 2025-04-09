@@ -137,7 +137,7 @@ const test1 = () => {
 
   const optimizer = new ExpressionOptimizer(ast);
   
-  console.log(new Formatter(optimizer.optimize()).format())
+  console.log(new Formatter(optimizer.optimize(), lexer.getComments()).format())
 };
 
 test1();

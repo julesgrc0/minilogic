@@ -50,6 +50,7 @@ class Lexer {
   private column: number = 0;
   private currentChar: string | null;
   private tokens: Record<number, Token> = {};
+  private comments: Record<number, string> = {};
 
   private keywords = new Set([
     "PRINT",
@@ -115,7 +116,6 @@ class Lexer {
   private number(): Token {
     let result = "";
     const startPos = this.pos;
-    const startCol = this.column;
     while (this.currentChar !== null && /[01]/.test(this.currentChar)) {
       result += this.currentChar;
       this.advance();
@@ -126,7 +126,7 @@ class Lexer {
   private identifier(): Token {
     let result = "";
     const startPos = this.pos;
-    while (this.currentChar !== null && /[A-Za-z_]/.test(this.currentChar)) {
+    while (this.currentChar !== null && /[A-Za-z0-9_]/.test(this.currentChar)) {
       result += this.currentChar;
       this.advance();
     }
@@ -151,9 +151,17 @@ class Lexer {
   }
 
   private skipComment(): void {
+    const pos = this.pos;
+    
+    this.comments[pos] = this.comments[pos] || "";
     while (this.currentChar !== null && this.currentChar !== "\n") {
+      this.comments[pos] += this.currentChar;
       this.advance();
     }
+  }
+
+  public getComments(): Record<number, string> {
+    return this.comments;
   }
 
   public getTokenById(id: number): Token | undefined {
@@ -171,7 +179,7 @@ class Lexer {
         continue;
       }
 
-      if (/[A-Za-z_]/.test(this.currentChar)) return this.identifier();
+      if (/[A-Za-z]/.test(this.currentChar)) return this.identifier();
       if (/[01]/.test(this.currentChar)) return this.number();
 
       const startPos = this.pos;
@@ -218,6 +226,7 @@ class Lexer {
           });
       }
 
+      this.advance();
       if (noerror) {
         return this.pushToken(this.pos, { type: TokenType.EOF, value: "" });
       }

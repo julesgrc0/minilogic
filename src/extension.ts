@@ -61,10 +61,10 @@ const actionFormatCode = (document: vscode.TextDocument) => {
 
   const parser = new Parser(lexer);
   const ast = parser.parseProgram();
-
+  console.log(lexer.getComments());
   let formatted: string;
   try {
-    formatted = new Formatter(ast).format();
+    formatted = new Formatter(ast, lexer.getComments()).format();
   } catch {
     vscode.window.showErrorMessage(
       "❌ Formatter Error: Invalid syntax in MiniLogic code."
