@@ -1,3 +1,4 @@
+import { Formatter } from "./formatter";
 import { Lexer, Operators } from "./lexer";
 import {
   Parser,
@@ -119,61 +120,15 @@ class ExpressionOptimizer {
     return expr;
   }
 
-  // private convertTableToExpression(func: Statement): Expression {
-  //   if (func.type !== StatementType.FunctionDefinition) {
-  //     throw new Error("Expected a function definition.");
-  //   }
-
-  //   for (const row of table.rows) {
-  //     if (row.output === "X") continue; // Ignore don't care terms
-  //     if (row.output === 0) continue;   // Ignore false outputs
-
-  //     let term: Expression | null = null;
-
-  //     for (let i = 0; i < row.input.length; i++) {
-  //       const varName = params[i];
-  //       const varExpr: Expression = { type: ExpressionType.Variable, name: varName, reference: false };
-  //       const notVarExpr: Expression = { type: ExpressionType.UnaryExpression, operator: Operators.Not, operand: varExpr };
-
-  //       const condition = row.input[i] === 1 ? varExpr : notVarExpr;
-
-  //       term = term ? { type: ExpressionType.BinaryExpression, left: term, operator: Operators.And, right: condition } : condition;
-  //     }
-
-  //     if (term) {
-  //       terms.push(term);
-  //     }
-  //   }
-
-  //   // Combine all terms using OR
-  //   return terms.length > 0 ? terms.reduce((acc, curr) => ({
-  //     type: ExpressionType.BinaryExpression,
-  //     left: acc,
-  //     operator: Operators.Or,
-  //     right: curr,
-  //   })) : { type: ExpressionType.Number, value: 0 }; // If no 1s, return 0
-  // }
 }
 
-// public applyRegrouping(): void {
-//   for (const stmt of this.ast) {
-//     if (stmt.type === "Assignment") {
-//       stmt.expression = this.regroupExpressions(stmt.expression);
-//     } else if (stmt.type === "FunctionDefinition") {
-//       stmt.expression = this.regroupExpressions(stmt.expression);
-//     }
-//   }
-// }
 
-// https://en.wikipedia.org/wiki/Boolean_algebra
-
-/*
 const test1 = () => {
   const program = `
         A = not not not not not B
         A = 1 or A and 0
         B = 0 and C
-        B = (B and C) or (C and B)
+        B = (B and C) or (B and C)
     `;
 
   const lexer = new Lexer(program);
@@ -181,15 +136,12 @@ const test1 = () => {
   const ast = parser.parseProgram();
 
   const optimizer = new ExpressionOptimizer(ast);
-  let before = JSON.stringify(ast, null, 2);
-  let after = JSON.stringify(optimizer.optimize(), null, 2);
-
-  console.log("Before optimization:\n", before);
-  console.log("After optimization:\n", after);
+  
+  console.log(new Formatter(optimizer.optimize()).format())
 };
 
 test1();
-
+/*
 const test2 = () => {
   const program0 = `
           A = not not not not not B
