@@ -24,6 +24,7 @@ yarn-error.log*
 
 # Lock files
 bun.lockb
+bun.lock
 
 # Ignore compiled JavaScript files
 *.js.map

@@ -25,6 +25,73 @@ class ExpressionOptimizer {
     return this.ast;
   }
 
+  private getUnusedVariables(): number[] {
+    const variables: Record<string, number> = {};
+
+    for (const stmt of this.ast) {
+      switch (stmt.type) {
+        case StatementType.Assignment:
+          variables[stmt.variable] = stmt.id;
+          break;
+        case StatementType.FunctionDefinition:
+        case StatementType.BuiltinCall:
+          const args =
+            stmt.type == StatementType.FunctionDefinition
+              ? [stmt.expression]
+              : stmt.args;
+          for (let expr of args) {
+            const vars = Object.keys(variables);
+            for (let varname of vars) {
+              if (variables[varname] == -1) {
+                continue;
+              }
+
+              const found = this.findUsedVariables(varname, stmt.type == StatementType.FunctionDefinition, expr);
+              if (found) {
+                variables[varname] = -1;
+                break;
+              }
+            }
+          }
+          break;
+      }
+    }
+
+    return Object.values(variables).filter((key) => key != -1);
+  }
+
+  private findUsedVariables(
+    varname: string,
+    isfunction: boolean,
+    expr: Expression
+  ): boolean {
+    switch (expr.type) {
+      case ExpressionType.Number:
+        return false;
+      case ExpressionType.Variable:
+        if (isfunction && !expr.reference) {
+          return false;
+        }
+        return expr.name === varname;
+      case ExpressionType.BinaryExpression:
+        return (
+          this.findUsedVariables(varname,isfunction, expr.left) ||
+          this.findUsedVariables(varname,isfunction, expr.right)
+        );
+      case ExpressionType.UnaryExpression:
+        return this.findUsedVariables(varname,isfunction, expr.operand);
+      case ExpressionType.FunctionCall:
+        return expr.args.some((arg) =>
+          this.findUsedVariables(varname, true, arg)
+        );
+      case ExpressionType.BuiltinCall:
+        return this.findUsedVariables(varname,isfunction, expr.operand);
+      case ExpressionType.TableDefinition:
+      case "Error":
+        return false;
+    }
+  }
+
   private removeDeadCode(expr: Expression): Expression {
     if (expr.type === ExpressionType.BinaryExpression) {
       const left = this.removeDeadCode(expr.left);
@@ -119,9 +186,7 @@ class ExpressionOptimizer {
     }
     return expr;
   }
-
 }
-
 
 const test1 = () => {
   const program = `
@@ -129,16 +194,23 @@ const test1 = () => {
         A = 1 or A and 0
         B = 0 and C
         B = (B and C) or (B and C)
+
+        C = 1
+        F(C) = C or C and C*
+
+        PRINT(A)
     `;
 
   const lexer = new Lexer(program);
   const parser = new Parser(lexer);
   const ast = parser.parseProgram();
 
-  const optimizer = new ExpressionOptimizer(ast);
-  const formatter = new Formatter(optimizer.optimize());
+ const optimizer = new ExpressionOptimizer(ast);
+ // const formatter = new Formatter(optimizer.optimize());
 
-  console.log(formatter.format())
+  //console.log(formatter.format());
+
+  console.log(optimizer.removeUnusedVariables());
 };
 
 test1();

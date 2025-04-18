@@ -162,8 +162,6 @@ class Parser {
         stmt = this.parseError(perror.position, perror.message);
         hasError = true;
       }
-
-      console.log(stmt);
       statements.push(stmt);
     }
 
