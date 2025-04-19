@@ -290,20 +290,32 @@ class Interpreter {
     }
   }
 
-  private evalBuiltinFunctionCallToString(expr: Expression, replaceVar: Map<string, string>, allowall: boolean): string {
+  private evalBuiltinFunctionCallToString(
+    expr: Expression,
+    replaceVar: Map<string, string>,
+    allowall: boolean
+  ): string {
     if (expr.type !== ExpressionType.BuiltinCall) {
       throw new Error(`Expected BuiltinCall, got ${expr.type}`);
     }
-   
+
     switch (expr.name) {
       case BuiltinType.ToNand:
-        return this.evalExpressionToString(this.convertExpressionToNand(expr.operand), replaceVar, allowall);
+        return this.evalExpressionToString(
+          this.convertExpressionToLogicGate(expr.operand, Operators.Nand),
+          replaceVar,
+          allowall
+        );
+      case BuiltinType.ToNor:
+        return this.evalExpressionToString(
+          this.convertExpressionToLogicGate(expr.operand, Operators.Nor),
+          replaceVar,
+          allowall
+        );
       default:
         return this.evalExpressionToString(expr.operand, replaceVar, allowall);
-        break;
     }
   }
-
 
   private evalExpression(
     expr: Expression,
@@ -414,195 +426,103 @@ class Interpreter {
     }
   }
 
-  private convertExpressionToNand(expr: Expression): Expression {
+  private convertExpressionToLogicGate(
+    expr: Expression,
+    operator: Operators
+  ): Expression {
+    const logicGate = (a: Expression, b: Expression): Expression => ({
+      type: ExpressionType.BinaryExpression,
+      operator,
+      left: a,
+      right: b,
+      id: -1,
+    });
+
     switch (expr.type) {
       case ExpressionType.Variable:
       case ExpressionType.Number:
       case ExpressionType.TableDefinition:
       case "Error":
         return expr;
-      case ExpressionType.UnaryExpression:
-        const inner = this.convertExpressionToNand(expr.operand);
-        return {
-          type: ExpressionType.BinaryExpression,
-          operator: Operators.Nand,
-          left: inner,
-          right: inner,
-          id: -1,
-        };
-      case ExpressionType.BinaryExpression:
-        const left = this.convertExpressionToNand(expr.left);
-        const right = this.convertExpressionToNand(expr.right);
+
+      case ExpressionType.UnaryExpression: {
+        const inner = this.convertExpressionToLogicGate(expr.operand, operator);
+        return logicGate(inner, inner);
+      }
+
+      case ExpressionType.BinaryExpression: {
+        const left = this.convertExpressionToLogicGate(expr.left, operator);
+        const right = this.convertExpressionToLogicGate(expr.right, operator);
+
         switch (expr.operator) {
           case Operators.And:
-            return {
-              type: ExpressionType.BinaryExpression,
-              operator: Operators.Nand,
-              left: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left,
-                right,
-                id: -1,
-              },
-              right: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left,
-                right,
-                id: -1,
-              },
-              id: -1,
-            };
-          case Operators.Or:
-            return {
-              type: ExpressionType.BinaryExpression,
-              operator: Operators.Nand,
-              left: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left,
-                right: left,
-                id: -1,
-              },
-              right: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left: right,
-                right,
-                id: -1,
-              },
-              id: -1,
-            };
-          case Operators.Xor:
-            return {
-              type: ExpressionType.BinaryExpression,
-              operator: Operators.Nand,
-              left: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left,
-                right: {
-                  type: ExpressionType.BinaryExpression,
-                  operator: Operators.Nand,
-                  left,
-                  right,
-                  id: -1,
-                },
-                id: -1,
-              },
-              right: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left: right,
-                right: {
-                  type: ExpressionType.BinaryExpression,
-                  operator: Operators.Nand,
-                  left,
-                  right,
-                  id: -1,
-                },
-                id: -1,
-              },
-              id: -1,
-            };
-          case Operators.Nor:
-            return {
-              type: ExpressionType.BinaryExpression,
-              operator: Operators.Nand,
-              left: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left: {
-                  type: ExpressionType.BinaryExpression,
-                  operator: Operators.Nand,
-                  left,
-                  right: left,
-                  id: -1,
-                },
-                right: {
-                  type: ExpressionType.BinaryExpression,
-                  operator: Operators.Nand,
-                  left: right,
-                  right,
-                  id: -1,
-                },
-                id: -1,
-              },
-              right: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left: {
-                  type: ExpressionType.BinaryExpression,
-                  operator: Operators.Nand,
-                  left,
-                  right: left,
-                  id: -1,
-                },
-                right: {
-                  type: ExpressionType.BinaryExpression,
-                  operator: Operators.Nand,
-                  left: right,
-                  right,
-                  id: -1,
-                },
-                id: -1,
-              },
-              id: -1,
-            };
-          case Operators.Xnor:
-            return {
-              type: ExpressionType.BinaryExpression,
-              operator: Operators.Nand,
-              left: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left:{
-                  type: ExpressionType.BinaryExpression,
-                  operator: Operators.Nand,
-                  left,
-                  right: left,
-                  id: -1,
-                },
-                right:{
-                  type: ExpressionType.BinaryExpression,
-                  operator: Operators.Nand,
-                  left: right,
-                  right,
-                  id: -1,
-                },
-                id: -1,
-              },
-              right: {
-                type: ExpressionType.BinaryExpression,
-                operator: Operators.Nand,
-                left,
-                right,
-                id: -1,
-              },
-              id: -1,
+            if (operator == Operators.Nand) {
+              const a = logicGate(left, right);
+              return logicGate(a, a);
+            } else {
+              return logicGate(logicGate(left, left), logicGate(right, right));
             }
-          case Operators.Equal:
-          case Operators.Nequal:
-          case Operators.Imply:
-          case Operators.Nimply:
-            // TODO: Implement these operators
-            return expr;
+
+          case Operators.Or:
+            if (operator == Operators.Nand) {
+              return logicGate(logicGate(left, left), logicGate(right, right));
+            } else {
+              const a = logicGate(left, right);
+              return logicGate(a, a);
+            }
+
+          case Operators.Xor: {
+            const a = logicGate(left, right);
+            const b = logicGate(left, a);
+            const c = logicGate(right, a);
+            return logicGate(b, c);
+          }
+
+          case Operators.Xnor: {
+            const a = logicGate(left, right);
+            const b = logicGate(left, a);
+            const c = logicGate(right, a);
+            const d = logicGate(b, c);
+            return logicGate(d, d);
+          }
 
           case Operators.Nand:
+            if (operator == Operators.Nor) {
+              const a = logicGate(
+                logicGate(left, left),
+                logicGate(right, right)
+              );
+              return logicGate(a, a);
+            }
+            return expr;
+
+          case Operators.Nor:
+            if (operator == Operators.Nand) {
+              const a = logicGate(
+                logicGate(left, left),
+                logicGate(right, right)
+              );
+              return logicGate(a, a);
+            }
+            return expr;
+
           case Operators.Not:
             return expr;
+          default:
+            return expr;
         }
+      }
+
       case ExpressionType.FunctionCall:
-        const args = expr.args.map((arg) => this.convertExpressionToNand(arg));
         return {
           ...expr,
-          args,
+          args: expr.args.map((arg) => this.convertExpressionToLogicGate(arg, operator)),
         };
+
       case ExpressionType.BuiltinCall:
         return {
           ...expr,
-          operand: this.convertExpressionToNand(expr.operand),
+          operand: this.convertExpressionToLogicGate(expr.operand, operator),
         };
     }
   }
