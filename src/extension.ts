@@ -5,6 +5,7 @@ import { Parser, Statement } from "./language/parser";
 import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
 import { Formatter } from "./language/formatter";
+import { Optimizer } from "./language/optimizer";
 
 
 const actionRunCode = () => {
@@ -94,6 +95,7 @@ const actionCodeUpdate = (
 
   const ast = parser.parseProgram();
   const errors = new SemanticAnalyzer(ast).analyze();
+ 
 
   for (const err of errors) {
     if (err.position === -1) continue;
@@ -114,6 +116,26 @@ const actionCodeUpdate = (
     diag.code = err.fixId;
     diagnostics.push(diag);
   }
+
+  const optimizations = new Optimizer(ast).optimize();
+  for(const opt of optimizations) {
+    const token = lexer.getTokenById(opt.fixId);
+    if (!token) continue;
+
+    const range = new vscode.Range(
+      new vscode.Position(token.line, 0),
+      document.lineAt(token.line).range.end
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      opt.message,
+      vscode.DiagnosticSeverity.Warning
+    );
+    diag.code = opt.fixId;
+    diagnostics.push(diag);
+  }
+
+
 
   diagnosticCollection.set(document.uri, diagnostics);
 };

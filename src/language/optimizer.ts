@@ -1,4 +1,3 @@
-import { Formatter } from "./formatter";
 import { Lexer, Operators } from "./lexer";
 import {
   Parser,
@@ -8,21 +7,90 @@ import {
   ExpressionType,
 } from "./parser";
 
-class ExpressionOptimizer {
+enum StatementOptimizationType {
+  SIMPLIFY_EXPRESSION = "simplify_expression",
+  REMOVE_STATEMENT = "remove_statement",
+}
+
+type StatementOptimization = (
+  | {
+      type: StatementOptimizationType.SIMPLIFY_EXPRESSION;
+      expression: Expression;
+    }
+  | {
+      type: StatementOptimizationType.REMOVE_STATEMENT;
+    }
+) & {
+  message: string;
+  fixId: number;
+};
+
+class Optimizer {
+  private optimizations: StatementOptimization[] = [];
+
   constructor(private ast: Statement[]) {}
 
-  public optimize(): Statement[] {
+  public optimize(): StatementOptimization[] {
     for (const stmt of this.ast) {
       if (
         stmt.type === StatementType.Assignment ||
         stmt.type === StatementType.FunctionDefinition
       ) {
-        stmt.expression = this.removeDeadCode(stmt.expression);
-        stmt.expression = this.regroupExpressions(stmt.expression);
+        const deadCodeExpr = this.removeDeadCode(stmt.expression);
+        if (this.compareExpressions(stmt.expression, deadCodeExpr)) {
+          this.optimizations.push({
+            type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
+            expression: deadCodeExpr,
+            message: "Dead code removed",
+            fixId: stmt.id,
+          });
+        } else {
+          const simplifyNot = this.simplifyNot(stmt.expression);
+          if (this.compareExpressions(stmt.expression, simplifyNot)) {
+            this.optimizations.push({
+              type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
+              expression: simplifyNot,
+              message: "Simplified not",
+              fixId: stmt.id,
+            });
+          }
+        }
       }
     }
 
-    return this.ast;
+    const unusedFunctions = this.getUnusedFunctions();
+    for (const id of unusedFunctions) {
+      this.optimizations.push({
+        type: StatementOptimizationType.REMOVE_STATEMENT,
+        message: "Unused function removed",
+        fixId: id,
+      });
+    }
+
+    const unusedVariables = this.getUnusedVariables();
+
+    for (const id of unusedVariables) {
+      this.optimizations.push({
+        type: StatementOptimizationType.REMOVE_STATEMENT,
+        message: "Unused variable removed",
+        fixId: id,
+      });
+    }
+
+
+    return this.optimizations;
+  }
+
+  private getUnusedFunctions(): number[] {
+    const functions: Record<string, number> = {};
+    for (const stmt of this.ast) {
+      if (stmt.type === StatementType.FunctionDefinition) {
+        functions[stmt.name] = stmt.id;
+      }
+      
+    }
+
+    return Object.values(functions).filter((key) => key != -1);
   }
 
   private getUnusedVariables(): number[] {
@@ -46,7 +114,11 @@ class ExpressionOptimizer {
                 continue;
               }
 
-              const found = this.findUsedVariables(varname, stmt.type == StatementType.FunctionDefinition, expr);
+              const found = this.findUsedVariables(
+                varname,
+                stmt.type == StatementType.FunctionDefinition,
+                expr
+              );
               if (found) {
                 variables[varname] = -1;
                 break;
@@ -58,6 +130,50 @@ class ExpressionOptimizer {
     }
 
     return Object.values(variables).filter((key) => key != -1);
+  }
+
+  private compareExpressions(expr1: Expression, expr2: Expression): boolean {
+    if (expr1.type !== expr2.type) return false;
+    const expr = expr2 as any;
+
+    switch (expr1.type) {
+      case ExpressionType.Number:
+        return expr1.value === expr.value;
+      case ExpressionType.Variable:
+        return expr1.name === expr.name && expr1.reference === expr.reference;
+      case ExpressionType.BinaryExpression:
+        return (
+          expr1.operator === expr.operator &&
+          this.compareExpressions(expr1.left, expr.left) &&
+          this.compareExpressions(expr1.right, expr.right)
+        );
+      case ExpressionType.UnaryExpression:
+        return (
+          expr1.operator === expr.operator &&
+          this.compareExpressions(expr1.operand, expr.operand)
+        );
+      case ExpressionType.FunctionCall:
+        return (
+          expr1.name === expr.name &&
+          expr1.args.length === expr.args.length &&
+          expr1.args.every((arg, index) =>
+            this.compareExpressions(arg, expr.args[index])
+          )
+        );
+      case ExpressionType.BuiltinCall:
+        return (
+          expr1.name === expr.name &&
+          this.compareExpressions(expr1.operand, expr.operand)
+        );
+      case ExpressionType.TableDefinition:
+        return (
+          expr1.rows === expr.rows &&
+          expr1.rows.length === expr.rows.length &&
+          JSON.stringify(expr1.rows) === JSON.stringify(expr.rows)
+        );
+      case "Error":
+        return expr1.message === expr.message;
+    }
   }
 
   private findUsedVariables(
@@ -75,17 +191,17 @@ class ExpressionOptimizer {
         return expr.name === varname;
       case ExpressionType.BinaryExpression:
         return (
-          this.findUsedVariables(varname,isfunction, expr.left) ||
-          this.findUsedVariables(varname,isfunction, expr.right)
+          this.findUsedVariables(varname, isfunction, expr.left) ||
+          this.findUsedVariables(varname, isfunction, expr.right)
         );
       case ExpressionType.UnaryExpression:
-        return this.findUsedVariables(varname,isfunction, expr.operand);
+        return this.findUsedVariables(varname, isfunction, expr.operand);
       case ExpressionType.FunctionCall:
         return expr.args.some((arg) =>
           this.findUsedVariables(varname, true, arg)
         );
       case ExpressionType.BuiltinCall:
-        return this.findUsedVariables(varname,isfunction, expr.operand);
+        return this.findUsedVariables(varname, isfunction, expr.operand);
       case ExpressionType.TableDefinition:
       case "Error":
         return false;
@@ -119,31 +235,7 @@ class ExpressionOptimizer {
     return expr;
   }
 
-  private getExpressionEndId(expr: Expression): number {
-    switch (expr.type) {
-      case ExpressionType.Number:
-      case ExpressionType.Variable:
-        return expr.id;
-      case ExpressionType.BuiltinCall:
-      case ExpressionType.UnaryExpression:
-        return this.getExpressionEndId(expr.operand);
-      case ExpressionType.BinaryExpression:
-        return Math.max(
-          this.getExpressionEndId(expr.left),
-          this.getExpressionEndId(expr.right)
-        );
-      case ExpressionType.FunctionCall:
-        const ids = expr.args.map((arg) => this.getExpressionEndId(arg));
-        return Math.max(expr.id, ...ids);
-      case ExpressionType.TableDefinition:
-        const last = expr.rows[expr.rows.length - 1];
-        return last.input[0][last.input[0].length - 1].id;
-      case "Error":
-        return expr.id;
-    }
-  }
-
-  private regroupExpressions(expr: Expression): Expression {
+  private simplifyNot(expr: Expression): Expression {
     if (
       expr.type === ExpressionType.UnaryExpression &&
       expr.operator === Operators.Not
@@ -153,7 +245,7 @@ class ExpressionOptimizer {
         subExpr.type === ExpressionType.UnaryExpression &&
         subExpr.operator === Operators.Not
       ) {
-        return this.regroupExpressions(subExpr.operand);
+        return this.simplifyNot(subExpr.operand);
       } else if (subExpr.type === ExpressionType.BinaryExpression) {
         const regroupeCases: Omit<
           Record<Operators, Operators>,
@@ -176,10 +268,10 @@ class ExpressionOptimizer {
           return {
             id: subExpr.id,
             type: ExpressionType.BinaryExpression,
-            left: this.regroupExpressions(subExpr.left),
+            left: this.simplifyNot(subExpr.left),
             operator:
               regroupeCases[subExpr.operator as keyof typeof regroupeCases],
-            right: this.regroupExpressions(subExpr.right),
+            right: this.simplifyNot(subExpr.right),
           };
         }
       }
@@ -188,6 +280,9 @@ class ExpressionOptimizer {
   }
 }
 
+export { Optimizer, StatementOptimizationType, StatementOptimization };
+
+/* 
 const test1 = () => {
   const program = `
         A = not not not not not B
@@ -205,15 +300,13 @@ const test1 = () => {
   const parser = new Parser(lexer);
   const ast = parser.parseProgram();
 
- const optimizer = new ExpressionOptimizer(ast);
- // const formatter = new Formatter(optimizer.optimize());
+  const optimizer = new ExpressionOptimizer(ast);
+  // const formatter = new Formatter(optimizer.optimize());
 
   //console.log(formatter.format());
-
-  console.log(optimizer.removeUnusedVariables());
 };
 
-test1();
+test1(); */
 /*
 const test2 = () => {
   const program0 = `
