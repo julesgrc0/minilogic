@@ -5,8 +5,7 @@ import { Parser, Statement } from "./language/parser";
 import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
 import { Formatter } from "./language/formatter";
-import { Optimizer } from "./language/optimizer";
-
+import { Optimizer, StatementOptimizationType } from "./language/optimizer";
 
 const actionRunCode = () => {
   const editor = vscode.window.activeTextEditor;
@@ -41,7 +40,6 @@ const actionRunCode = () => {
 
   let result: string[];
   try {
-    
     result = new Interpreter(ast).run();
   } catch (error) {
     outputChannel.appendLine("❌ Interpreter Error: Invalid MiniLogic code.");
@@ -95,7 +93,6 @@ const actionCodeUpdate = (
 
   const ast = parser.parseProgram();
   const errors = new SemanticAnalyzer(ast).analyze();
- 
 
   for (const err of errors) {
     if (err.position === -1) continue;
@@ -118,7 +115,7 @@ const actionCodeUpdate = (
   }
 
   const optimizations = new Optimizer(ast).optimize();
-  for(const opt of optimizations) {
+  for (const opt of optimizations) {
     const token = lexer.getTokenById(opt.fixId);
     if (!token) continue;
 
@@ -135,8 +132,6 @@ const actionCodeUpdate = (
     diagnostics.push(diag);
   }
 
-
-
   diagnosticCollection.set(document.uri, diagnostics);
 };
 
@@ -145,27 +140,46 @@ const actionQuickFix = (
   range: vscode.Range | vscode.Selection,
   context: vscode.CodeActionContext
 ) => {
+  if (document.languageId !== "minilogic") return;
+
   const fixes: vscode.CodeAction[] = [];
 
-  // for (const diag of context.diagnostics) {
-  //   if (diagnostic.message.includes("undefined function")) {
-  //     const fix = new vscode.CodeAction(
-  //       "💡 Create stub for function",
-  //       vscode.CodeActionKind.QuickFix
-  //     );
-  //     fix.edit = new vscode.WorkspaceEdit();
-  //     const insertLine = document.lineCount;
-  //     const fnName = document.getText(diagnostic.range);
-  //     fix.edit.insert(
-  //       document.uri,
-  //       new vscode.Position(insertLine, 0),
-  //       `\n${fnName}(A) = 0\n`
-  //     );
-  //     fix.diagnostics = [diagnostic];
-  //     fix.isPreferred = true;
-  //     fixes.push(fix);
-  //   }
-  // }
+  const lexer = new Lexer(document.getText());
+  const parser = new Parser(lexer);
+
+  const ast = parser.parseProgram();
+  const optimizations = new Optimizer(ast).optimize();
+
+  for (const diag of context.diagnostics) {
+    if (diag.severity === vscode.DiagnosticSeverity.Warning) {
+      const fix = new vscode.CodeAction(
+        diag.message,
+        vscode.CodeActionKind.QuickFix
+      );
+
+      const fixedCode = optimizations.find((opt) => opt.fixId === diag.code);
+      if (!fixedCode) continue;
+      
+      const token = lexer.getTokenById(diag.code as number);
+      if (!token) continue;
+      
+      const range = new vscode.Range(
+        new vscode.Position(token.line, 0),
+        document.lineAt(token.line).range.end
+      );
+
+      fix.edit = new vscode.WorkspaceEdit();
+      if (fixedCode.type === StatementOptimizationType.REMOVE_STATEMENT) {
+        fix.edit.delete(document.uri, range);
+      }else{
+        fix.edit.replace(document.uri, range, fixedCode.line);
+      }
+
+      fix.diagnostics = [diag];
+      fix.isPreferred = true;
+      fixes.push(fix);
+    }
+  }
 
   return fixes;
 };

@@ -16,7 +16,7 @@ enum StatementOptimizationType {
 type StatementOptimization = (
   | {
       type: StatementOptimizationType.SIMPLIFY_EXPRESSION;
-      expression: Expression;
+      line: string;
     }
   | {
       type: StatementOptimizationType.REMOVE_STATEMENT;
@@ -37,7 +37,6 @@ class Optimizer {
         stmt.type === StatementType.Assignment ||
         stmt.type === StatementType.FunctionDefinition
       ) {
-        
         const deadCodeExpr = this.removeDeadCode(stmt.expression);
         if (!this.isSameExpressions(stmt.expression, deadCodeExpr)) {
           const exprStr = this.getStatmentToString({
@@ -46,7 +45,7 @@ class Optimizer {
           });
           this.optimizations.push({
             type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
-            expression: deadCodeExpr,
+            line: exprStr,
             message: `This expression can be simplified to ${exprStr}`,
             fixId: stmt.id,
           });
@@ -61,12 +60,11 @@ class Optimizer {
           });
           this.optimizations.push({
             type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
-            expression: simplifyNot,
+            line: exprStr,
             message: `This expression can be simplified to ${exprStr}`,
             fixId: stmt.id,
           });
         }
-
       }
     }
 
@@ -93,14 +91,36 @@ class Optimizer {
   }
 
   private getStatmentToString(stmt: Statement): string {
-    return new Formatter([stmt]).format().replace(/\n/g, " ");
+    return new Formatter([stmt]).format().replace(/\n/g, " ").trim();
   }
 
   private getUnusedFunctions(): number[] {
     const functions: Record<string, number> = {};
     for (const stmt of this.ast) {
-      if (stmt.type === StatementType.FunctionDefinition) {
-        functions[stmt.name] = stmt.id;
+      switch (stmt.type) {
+        case StatementType.FunctionDefinition:
+          functions[stmt.name] = stmt.id;
+          break;
+
+        case StatementType.BuiltinCall:
+        case StatementType.Assignment:
+          const expr =
+            stmt.type == StatementType.Assignment
+              ? [stmt.expression]
+              : stmt.args;
+          for (const funcname of Object.keys(functions)) {
+            if (functions[funcname] == -1) {
+              continue;
+            }
+            for (const exprItem of expr) {
+              const found = this.findUsedFunctions(funcname, exprItem);
+              if (found) {
+                functions[funcname] = -1;
+                break;
+              }
+            }
+          }
+          break;
       }
     }
 
@@ -182,6 +202,32 @@ class Optimizer {
     }
   }
 
+  private findUsedFunctions(funcname: string, expr: Expression): boolean {
+    switch (expr.type) {
+      case ExpressionType.Number:
+        return false;
+      case ExpressionType.Variable:
+        return false;
+      case ExpressionType.BinaryExpression:
+        return (
+          this.findUsedFunctions(funcname, expr.left) ||
+          this.findUsedFunctions(funcname, expr.right)
+        );
+      case ExpressionType.UnaryExpression:
+        return this.findUsedFunctions(funcname, expr.operand);
+      case ExpressionType.FunctionCall:
+        if (expr.name === funcname) {
+          return true;
+        }
+        return expr.args.some((arg) => this.findUsedFunctions(funcname, arg));
+      case ExpressionType.BuiltinCall:
+        return this.findUsedFunctions(funcname, expr.operand);
+      case "Error":
+      case ExpressionType.TableDefinition:
+        return false;
+    }
+  }
+
   private removeDeadCode(expr: Expression): Expression {
     if (expr.type === ExpressionType.BinaryExpression) {
       const left = this.removeDeadCode(expr.left);
@@ -192,6 +238,12 @@ class Optimizer {
           return left;
         if (right.type === ExpressionType.Number && right.value === 1)
           return right;
+
+        if (left.type === ExpressionType.Number && left.value === 0)
+          return right;
+        if (right.type === ExpressionType.Number && right.value === 0)
+          return left;
+
         if (JSON.stringify(left) === JSON.stringify(right)) return left;
       }
 
@@ -200,6 +252,12 @@ class Optimizer {
           return left;
         if (right.type === ExpressionType.Number && right.value === 0)
           return right;
+
+        if (left.type === ExpressionType.Number && left.value === 1)
+          return right;
+        if (right.type === ExpressionType.Number && right.value === 1)
+          return left;
+
         if (JSON.stringify(left) === JSON.stringify(right)) return left;
       }
 
