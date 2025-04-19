@@ -9,17 +9,17 @@ import {
 } from "./parser";
 
 enum StatementOptimizationType {
-  SIMPLIFY_EXPRESSION = "simplify_expression",
-  REMOVE_STATEMENT = "remove_statement",
+  CHANGE,
+  REMOVE,
 }
 
 type StatementOptimization = (
   | {
-      type: StatementOptimizationType.SIMPLIFY_EXPRESSION;
+      type: StatementOptimizationType.CHANGE;
       line: string;
     }
   | {
-      type: StatementOptimizationType.REMOVE_STATEMENT;
+      type: StatementOptimizationType.REMOVE;
     }
 ) & {
   message: string;
@@ -44,7 +44,7 @@ class Optimizer {
             expression: deadCodeExpr,
           });
           this.optimizations.push({
-            type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
+            type: StatementOptimizationType.CHANGE,
             line: exprStr,
             message: `This expression can be simplified to ${exprStr}`,
             fixId: stmt.id,
@@ -59,7 +59,7 @@ class Optimizer {
             expression: simplifyNot,
           });
           this.optimizations.push({
-            type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
+            type: StatementOptimizationType.CHANGE,
             line: exprStr,
             message: `This expression can be simplified to ${exprStr}`,
             fixId: stmt.id,
@@ -71,7 +71,7 @@ class Optimizer {
     const unusedFunctions = this.getUnusedFunctions();
     for (const id of unusedFunctions) {
       this.optimizations.push({
-        type: StatementOptimizationType.REMOVE_STATEMENT,
+        type: StatementOptimizationType.REMOVE,
         message: `This function is never used`,
         fixId: id,
       });
@@ -81,7 +81,7 @@ class Optimizer {
 
     for (const id of unusedVariables) {
       this.optimizations.push({
-        type: StatementOptimizationType.REMOVE_STATEMENT,
+        type: StatementOptimizationType.REMOVE,
         message: `This variable is never used`,
         fixId: id,
       });
@@ -100,6 +100,37 @@ class Optimizer {
       switch (stmt.type) {
         case StatementType.FunctionDefinition:
           functions[stmt.name] = stmt.id;
+
+          const parameters = stmt.parameters.filter(
+            (param) =>
+              this.findUsedVariables(param, false, stmt.expression) == true
+          );
+          const unsedParameters = stmt.parameters.filter(
+            (param) => !parameters.includes(param)
+          );
+
+          if (parameters.length != stmt.parameters.length) {
+            if (parameters.length == 0) {
+              this.optimizations.push({
+                type: StatementOptimizationType.REMOVE,
+                message: `This function does not use any parameters`,
+                fixId: stmt.id,
+              });
+            } else {
+              this.optimizations.push({
+                type: StatementOptimizationType.CHANGE,
+                line: this.getStatmentToString({
+                  ...stmt,
+                  parameters,
+                }),
+                message: `This function has ${unsedParameters.length} unused parameters: ${unsedParameters.join(
+                  ", "
+                )}`,
+                fixId: stmt.id,
+              });
+            }
+          }
+
           break;
 
         case StatementType.BuiltinCall:

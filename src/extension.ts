@@ -169,7 +169,7 @@ const actionQuickFix = (
       );
 
       fix.edit = new vscode.WorkspaceEdit();
-      if (fixedCode.type === StatementOptimizationType.REMOVE_STATEMENT) {
+      if (fixedCode.type === StatementOptimizationType.REMOVE) {
         fix.edit.delete(document.uri, range);
       }else{
         fix.edit.replace(document.uri, range, fixedCode.line);
