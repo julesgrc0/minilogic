@@ -104,6 +104,25 @@ class Interpreter {
         // TODO: Implement graphing logic
         break;
       case BuiltinType.Table:
+        for(const arg of stmt.args) {
+            switch (arg.type) {
+              case ExpressionType.Variable:
+                if(this.functions.has(arg.name)) {
+                  const func = this.functions.get(arg.name)!;
+                  if (func.type !== StatementType.FunctionDefinition) continue;
+                  this.output.push(this.evalTableToString(func.expression, func.name));
+                }
+                break;
+              case ExpressionType.Number:
+              case ExpressionType.TableDefinition:
+              case "Error":
+                throw new Error(`Invalid argument for table: ${arg.type}`);
+              default:
+                this.output.push(this.evalTableToString(arg));
+                break;
+            }
+        }
+
         // TODO: Implement table logic
         break;
       case BuiltinType.Export:
@@ -113,6 +132,51 @@ class Interpreter {
         throw new Error(`Invalid usage of builtin function: ${stmt.name}`);
     }
   }
+
+  private evalTableToString(expr: Expression, funcname: string | null = null): string {
+    if (expr.type !== ExpressionType.BinaryExpression && expr.type !== ExpressionType.UnaryExpression && expr.type !== ExpressionType.Variable) {
+      throw new Error("Only logical expressions can be converted to a truth table");
+    }
+
+    const variables = new Set<string>();
+    const collectVariables = (e: Expression) => {
+      if (e.type === ExpressionType.Variable) {
+        if(!e.reference) {
+          variables.add(e.name);
+        }
+      } else if (e.type === ExpressionType.BinaryExpression) {
+        collectVariables(e.left);
+        collectVariables(e.right);
+      } else if (e.type === ExpressionType.UnaryExpression) {
+        collectVariables(e.operand);
+      }
+    };
+
+    collectVariables(expr);
+
+    const variableList = Array.from(variables);
+    const numRows = Math.pow(2, variableList.length);
+    const rows: string[] = [];
+
+    const outputName = funcname || this.evalExpressionToString(expr, new Map(), true);
+    rows.push(variableList.join(" ") + ` | ${outputName}`);
+
+    for (let i = 0; i < numRows; i++) {
+      const localVariables = new Map<string, BinaryNumber>();
+      const binaryString = i.toString(2).padStart(variableList.length, "0");
+
+      for (let j = 0; j < variableList.length; j++) {
+        localVariables.set(variableList[j], parseInt(binaryString[j]) as BinaryNumber);
+      }
+
+      const result = this.evalExpression(expr, localVariables);
+      const row = binaryString.split("").join(" ") + " | " + result;
+      rows.push(row);
+    }
+    console.log(rows)
+    return rows.join("\n") + "\n";
+  }
+
 
   private evalExpressionToString(
     expr: Expression,
