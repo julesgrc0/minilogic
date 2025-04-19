@@ -4,4 +4,7 @@ B = 0
 
 F(B) = B xor A*
 
+F2(A, B) = TO_NAND(A and B or not B xnor A)
+
+SHOW(TO_NAND(A and B), TO_NAND(not A))
 TABLE(F, A, A*, not A, A and not B* or B)

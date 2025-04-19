@@ -104,26 +104,26 @@ class Interpreter {
         // TODO: Implement graphing logic
         break;
       case BuiltinType.Table:
-        for(const arg of stmt.args) {
-            switch (arg.type) {
-              case ExpressionType.Variable:
-                if(this.functions.has(arg.name)) {
-                  const func = this.functions.get(arg.name)!;
-                  if (func.type !== StatementType.FunctionDefinition) continue;
-                  this.output.push(this.evalTableToString(func.expression, func.name));
-                }
-                break;
-              case ExpressionType.Number:
-              case ExpressionType.TableDefinition:
-              case "Error":
-                throw new Error(`Invalid argument for table: ${arg.type}`);
-              default:
-                this.output.push(this.evalTableToString(arg));
-                break;
-            }
+        for (const arg of stmt.args) {
+          switch (arg.type) {
+            case ExpressionType.Variable:
+              if (this.functions.has(arg.name)) {
+                const func = this.functions.get(arg.name)!;
+                if (func.type !== StatementType.FunctionDefinition) continue;
+                this.output.push(
+                  this.evalTableToString(func.expression, func.name)
+                );
+              }
+              break;
+            case ExpressionType.Number:
+            case ExpressionType.TableDefinition:
+            case "Error":
+              throw new Error(`Invalid argument for table: ${arg.type}`);
+            default:
+              this.output.push(this.evalTableToString(arg));
+              break;
+          }
         }
-
-        // TODO: Implement table logic
         break;
       case BuiltinType.Export:
         // TODO: Implement export logic
@@ -133,15 +133,24 @@ class Interpreter {
     }
   }
 
-  private evalTableToString(expr: Expression, funcname: string | null = null): string {
-    if (expr.type !== ExpressionType.BinaryExpression && expr.type !== ExpressionType.UnaryExpression && expr.type !== ExpressionType.Variable) {
-      throw new Error("Only logical expressions can be converted to a truth table");
+  private evalTableToString(
+    expr: Expression,
+    funcname: string | null = null
+  ): string {
+    if (
+      expr.type !== ExpressionType.BinaryExpression &&
+      expr.type !== ExpressionType.UnaryExpression &&
+      expr.type !== ExpressionType.Variable
+    ) {
+      throw new Error(
+        "Only logical expressions can be converted to a truth table"
+      );
     }
 
     const variables = new Set<string>();
     const collectVariables = (e: Expression) => {
       if (e.type === ExpressionType.Variable) {
-        if(!e.reference) {
+        if (!e.reference) {
           variables.add(e.name);
         }
       } else if (e.type === ExpressionType.BinaryExpression) {
@@ -158,7 +167,8 @@ class Interpreter {
     const numRows = Math.pow(2, variableList.length);
     const rows: string[] = [];
 
-    const outputName = funcname || this.evalExpressionToString(expr, new Map(), true);
+    const outputName =
+      funcname || this.evalExpressionToString(expr, new Map(), true);
     rows.push(variableList.join(" ") + ` | ${outputName}`);
 
     for (let i = 0; i < numRows; i++) {
@@ -166,17 +176,19 @@ class Interpreter {
       const binaryString = i.toString(2).padStart(variableList.length, "0");
 
       for (let j = 0; j < variableList.length; j++) {
-        localVariables.set(variableList[j], parseInt(binaryString[j]) as BinaryNumber);
+        localVariables.set(
+          variableList[j],
+          parseInt(binaryString[j]) as BinaryNumber
+        );
       }
 
       const result = this.evalExpression(expr, localVariables);
       const row = binaryString.split("").join(" ") + " | " + result;
       rows.push(row);
     }
-    console.log(rows)
+    console.log(rows);
     return rows.join("\n") + "\n";
   }
-
 
   private evalExpressionToString(
     expr: Expression,
@@ -249,8 +261,10 @@ class Interpreter {
         }
 
         const replacement = new Map<string, string>();
-        if(func.parameters.length !== expr.args.length) {
-          throw new Error(`Function ${func.name} called with ${expr.args.length} arguments, expected ${func.parameters.length}`);
+        if (func.parameters.length !== expr.args.length) {
+          throw new Error(
+            `Function ${func.name} called with ${expr.args.length} arguments, expected ${func.parameters.length}`
+          );
         }
 
         for (let i = 0; i < func.parameters.length; i++) {
@@ -277,8 +291,19 @@ class Interpreter {
   }
 
   private evalBuiltinFunctionCallToString(expr: Expression, replaceVar: Map<string, string>, allowall: boolean): string {
-    return "";
+    if (expr.type !== ExpressionType.BuiltinCall) {
+      throw new Error(`Expected BuiltinCall, got ${expr.type}`);
+    }
+   
+    switch (expr.name) {
+      case BuiltinType.ToNand:
+        return this.evalExpressionToString(this.convertExpressionToNand(expr.operand), replaceVar, allowall);
+      default:
+        return this.evalExpressionToString(expr.operand, replaceVar, allowall);
+        break;
+    }
   }
+
 
   private evalExpression(
     expr: Expression,
@@ -380,13 +405,205 @@ class Interpreter {
 
     switch (expr.name) {
       case BuiltinType.ToNand:
-        return this.evalExpression(expr.operand, parentLocalVar);
       case BuiltinType.ToNor:
         return this.evalExpression(expr.operand, parentLocalVar);
       case BuiltinType.Simplify:
         return this.evalExpression(expr.operand, parentLocalVar);
       default:
         throw new Error(`Invalid usage of builtin function: ${expr.name}`);
+    }
+  }
+
+  private convertExpressionToNand(expr: Expression): Expression {
+    switch (expr.type) {
+      case ExpressionType.Variable:
+      case ExpressionType.Number:
+      case ExpressionType.TableDefinition:
+      case "Error":
+        return expr;
+      case ExpressionType.UnaryExpression:
+        const inner = this.convertExpressionToNand(expr.operand);
+        return {
+          type: ExpressionType.BinaryExpression,
+          operator: Operators.Nand,
+          left: inner,
+          right: inner,
+          id: -1,
+        };
+      case ExpressionType.BinaryExpression:
+        const left = this.convertExpressionToNand(expr.left);
+        const right = this.convertExpressionToNand(expr.right);
+        switch (expr.operator) {
+          case Operators.And:
+            return {
+              type: ExpressionType.BinaryExpression,
+              operator: Operators.Nand,
+              left: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left,
+                right,
+                id: -1,
+              },
+              right: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left,
+                right,
+                id: -1,
+              },
+              id: -1,
+            };
+          case Operators.Or:
+            return {
+              type: ExpressionType.BinaryExpression,
+              operator: Operators.Nand,
+              left: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left,
+                right: left,
+                id: -1,
+              },
+              right: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left: right,
+                right,
+                id: -1,
+              },
+              id: -1,
+            };
+          case Operators.Xor:
+            return {
+              type: ExpressionType.BinaryExpression,
+              operator: Operators.Nand,
+              left: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left,
+                right: {
+                  type: ExpressionType.BinaryExpression,
+                  operator: Operators.Nand,
+                  left,
+                  right,
+                  id: -1,
+                },
+                id: -1,
+              },
+              right: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left: right,
+                right: {
+                  type: ExpressionType.BinaryExpression,
+                  operator: Operators.Nand,
+                  left,
+                  right,
+                  id: -1,
+                },
+                id: -1,
+              },
+              id: -1,
+            };
+          case Operators.Nor:
+            return {
+              type: ExpressionType.BinaryExpression,
+              operator: Operators.Nand,
+              left: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left: {
+                  type: ExpressionType.BinaryExpression,
+                  operator: Operators.Nand,
+                  left,
+                  right: left,
+                  id: -1,
+                },
+                right: {
+                  type: ExpressionType.BinaryExpression,
+                  operator: Operators.Nand,
+                  left: right,
+                  right,
+                  id: -1,
+                },
+                id: -1,
+              },
+              right: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left: {
+                  type: ExpressionType.BinaryExpression,
+                  operator: Operators.Nand,
+                  left,
+                  right: left,
+                  id: -1,
+                },
+                right: {
+                  type: ExpressionType.BinaryExpression,
+                  operator: Operators.Nand,
+                  left: right,
+                  right,
+                  id: -1,
+                },
+                id: -1,
+              },
+              id: -1,
+            };
+          case Operators.Xnor:
+            return {
+              type: ExpressionType.BinaryExpression,
+              operator: Operators.Nand,
+              left: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left:{
+                  type: ExpressionType.BinaryExpression,
+                  operator: Operators.Nand,
+                  left,
+                  right: left,
+                  id: -1,
+                },
+                right:{
+                  type: ExpressionType.BinaryExpression,
+                  operator: Operators.Nand,
+                  left: right,
+                  right,
+                  id: -1,
+                },
+                id: -1,
+              },
+              right: {
+                type: ExpressionType.BinaryExpression,
+                operator: Operators.Nand,
+                left,
+                right,
+                id: -1,
+              },
+              id: -1,
+            }
+          case Operators.Equal:
+          case Operators.Nequal:
+          case Operators.Imply:
+          case Operators.Nimply:
+            // TODO: Implement these operators
+            return expr;
+
+          case Operators.Nand:
+          case Operators.Not:
+            return expr;
+        }
+      case ExpressionType.FunctionCall:
+        const args = expr.args.map((arg) => this.convertExpressionToNand(arg));
+        return {
+          ...expr,
+          args,
+        };
+      case ExpressionType.BuiltinCall:
+        return {
+          ...expr,
+          operand: this.convertExpressionToNand(expr.operand),
+        };
     }
   }
 
