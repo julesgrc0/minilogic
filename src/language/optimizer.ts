@@ -1,3 +1,4 @@
+import { Formatter } from "./formatter";
 import { Lexer, Operators } from "./lexer";
 import {
   Parser,
@@ -36,25 +37,36 @@ class Optimizer {
         stmt.type === StatementType.Assignment ||
         stmt.type === StatementType.FunctionDefinition
       ) {
+        
         const deadCodeExpr = this.removeDeadCode(stmt.expression);
-        if (this.compareExpressions(stmt.expression, deadCodeExpr)) {
+        if (!this.isSameExpressions(stmt.expression, deadCodeExpr)) {
+          const exprStr = this.getStatmentToString({
+            ...stmt,
+            expression: deadCodeExpr,
+          });
           this.optimizations.push({
             type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
             expression: deadCodeExpr,
-            message: "Dead code removed",
+            message: `This expression can be simplified to ${exprStr}`,
             fixId: stmt.id,
           });
-        } else {
-          const simplifyNot = this.simplifyNot(stmt.expression);
-          if (this.compareExpressions(stmt.expression, simplifyNot)) {
-            this.optimizations.push({
-              type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
-              expression: simplifyNot,
-              message: "Simplified not",
-              fixId: stmt.id,
-            });
-          }
+          continue;
         }
+
+        const simplifyNot = this.simplifyNot(stmt.expression);
+        if (!this.isSameExpressions(stmt.expression, simplifyNot)) {
+          const exprStr = this.getStatmentToString({
+            ...stmt,
+            expression: simplifyNot,
+          });
+          this.optimizations.push({
+            type: StatementOptimizationType.SIMPLIFY_EXPRESSION,
+            expression: simplifyNot,
+            message: `This expression can be simplified to ${exprStr}`,
+            fixId: stmt.id,
+          });
+        }
+
       }
     }
 
@@ -62,7 +74,7 @@ class Optimizer {
     for (const id of unusedFunctions) {
       this.optimizations.push({
         type: StatementOptimizationType.REMOVE_STATEMENT,
-        message: "Unused function removed",
+        message: `This function is never used`,
         fixId: id,
       });
     }
@@ -72,13 +84,16 @@ class Optimizer {
     for (const id of unusedVariables) {
       this.optimizations.push({
         type: StatementOptimizationType.REMOVE_STATEMENT,
-        message: "Unused variable removed",
+        message: `This variable is never used`,
         fixId: id,
       });
     }
 
-
     return this.optimizations;
+  }
+
+  private getStatmentToString(stmt: Statement): string {
+    return new Formatter([stmt]).format().replace(/\n/g, " ");
   }
 
   private getUnusedFunctions(): number[] {
@@ -87,7 +102,6 @@ class Optimizer {
       if (stmt.type === StatementType.FunctionDefinition) {
         functions[stmt.name] = stmt.id;
       }
-      
     }
 
     return Object.values(functions).filter((key) => key != -1);
@@ -132,48 +146,8 @@ class Optimizer {
     return Object.values(variables).filter((key) => key != -1);
   }
 
-  private compareExpressions(expr1: Expression, expr2: Expression): boolean {
-    if (expr1.type !== expr2.type) return false;
-    const expr = expr2 as any;
-
-    switch (expr1.type) {
-      case ExpressionType.Number:
-        return expr1.value === expr.value;
-      case ExpressionType.Variable:
-        return expr1.name === expr.name && expr1.reference === expr.reference;
-      case ExpressionType.BinaryExpression:
-        return (
-          expr1.operator === expr.operator &&
-          this.compareExpressions(expr1.left, expr.left) &&
-          this.compareExpressions(expr1.right, expr.right)
-        );
-      case ExpressionType.UnaryExpression:
-        return (
-          expr1.operator === expr.operator &&
-          this.compareExpressions(expr1.operand, expr.operand)
-        );
-      case ExpressionType.FunctionCall:
-        return (
-          expr1.name === expr.name &&
-          expr1.args.length === expr.args.length &&
-          expr1.args.every((arg, index) =>
-            this.compareExpressions(arg, expr.args[index])
-          )
-        );
-      case ExpressionType.BuiltinCall:
-        return (
-          expr1.name === expr.name &&
-          this.compareExpressions(expr1.operand, expr.operand)
-        );
-      case ExpressionType.TableDefinition:
-        return (
-          expr1.rows === expr.rows &&
-          expr1.rows.length === expr.rows.length &&
-          JSON.stringify(expr1.rows) === JSON.stringify(expr.rows)
-        );
-      case "Error":
-        return expr1.message === expr.message;
-    }
+  private isSameExpressions(expr1: Expression, expr2: Expression): boolean {
+    return JSON.stringify(expr1) === JSON.stringify(expr2);
   }
 
   private findUsedVariables(

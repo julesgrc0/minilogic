@@ -2,6 +2,8 @@
 
 A = 1
 
-F(A, B) = A or A*
+B = not (A nand 0) 
 
-PRINT(A)
+F(A, B) = A or A* and B*
+
+PRINT(B)
