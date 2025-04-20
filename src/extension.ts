@@ -261,7 +261,7 @@ const actionHoverExpr = (
         interpreter.run();
       
         const funcName = stmt.name;
-        
+
         const table = interpreter.generateTruthTable(funcName);
         if(!table) return;
 
@@ -325,8 +325,6 @@ export function activate(context: vscode.ExtensionContext) {
       if the user types F(A, B) = [ when the "[" is typed the autecomplete generate the table filled with 0
   - Add autocomplete for functions and variable
   - Add autocomplete for variable reference and variable inside function
-  - Add autocomplete for builtin functions
-  - Show truth table when hover on function or on operators
   - Add quick fix for errors
   */
 
