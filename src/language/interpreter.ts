@@ -22,6 +22,28 @@ class Interpreter {
     return this.output;
   }
 
+  public getVariables(): Map<string, BinaryNumber> {
+    return this.variables;
+  }
+
+  public getFunctions(): Map<string, Statement> {
+    return this.functions;
+  }
+
+  public callFunction(name: string, ...args: BinaryNumber[]): BinaryNumber | null {
+    const func = this.functions.get(name);
+    
+    if (!func || func.type !== StatementType.FunctionDefinition) return null;
+    if (func.parameters.length !== args.length) return null;
+
+    const localVariables = new Map<string, BinaryNumber>();
+    for (let i = 0; i < func.parameters.length; i++) {
+      localVariables.set(func.parameters[i], args[i]);
+    }
+
+    return this.evalExpression(func.expression, localVariables);
+  }
+
   public generateTruthTable(funcName: string): {
     inputs: string[];
     rows: [number[], number][];

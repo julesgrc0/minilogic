@@ -57,7 +57,10 @@
         "title": "Run MiniLogic File",
         "icon": "$(play)"
       }
-    ]
+    ],
+    "completionItemProvider":{
+      "language": "minilogic"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.23.0",

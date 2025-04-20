@@ -16,6 +16,10 @@ G(A, B) = [
     11, 1,
 ]
 
+veryLongFuncName(A) = A or not A*  and A nand F(A) equal F2()
+
+Var = A or B
+
 TABLE(G, A or A)
 TABLE(F2)
 

@@ -195,6 +195,27 @@ class Lexer {
     return afterLine;
   }
 
+  public getFirstTokenAtLine(line: number): Token | undefined {
+
+    const firstToken = Object.values(this.tokens)
+      .filter((token) => token.line === line)
+      .sort((a, b) => a.column - b.column)[0];
+    if (firstToken) return firstToken;
+
+    const nearestToken = Object.values(this.tokens)
+      .filter((token) => token.line < line)
+      .sort((a, b) => b.line - a.line || b.column - a.column)[0];
+    if (nearestToken) return nearestToken;
+
+    return Object.values(this.tokens)
+      .filter((token) => token.line > line)
+      .sort((a, b) => a.line - b.line || a.column - b.column)[0];
+  }
+
+  public getOperators(): Operators[] {
+    return Array.from(this.operators) as Operators[];
+  }
+
   public getNextToken(noerror = false): Token {
     while (this.currentChar !== null) {
       if (/\s/.test(this.currentChar)) {
