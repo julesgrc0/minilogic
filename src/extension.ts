@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { Lexer } from "./language/lexer";
-import { Parser, Statement } from "./language/parser";
+import {
+  Expression,
+  ExpressionType,
+  Parser,
+  Statement,
+  StatementType,
+} from "./language/parser";
 import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
 import { Formatter } from "./language/formatter";
@@ -159,10 +165,10 @@ const actionQuickFix = (
 
       const fixedCode = optimizations.find((opt) => opt.fixId === diag.code);
       if (!fixedCode) continue;
-      
+
       const token = lexer.getTokenById(diag.code as number);
       if (!token) continue;
-      
+
       const range = new vscode.Range(
         new vscode.Position(token.line, 0),
         document.lineAt(token.line).range.end
@@ -171,7 +177,7 @@ const actionQuickFix = (
       fix.edit = new vscode.WorkspaceEdit();
       if (fixedCode.type === StatementOptimizationType.REMOVE) {
         fix.edit.delete(document.uri, range);
-      }else{
+      } else {
         fix.edit.replace(document.uri, range, fixedCode.line);
       }
 
@@ -182,6 +188,101 @@ const actionQuickFix = (
   }
 
   return fixes;
+};
+
+const actionHoverExpr = (
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  cancel: vscode.CancellationToken
+) => {
+  const code = document.getText();
+  const lexer = new Lexer(code);
+  const parser = new Parser(lexer);
+
+  const ast = parser.parseProgram();
+  const token = lexer.getTokenByPosition(position.line, position.character);
+
+  if (!token) return;
+
+  const isIdInExpression = (expr: Expression, id: number): boolean => {
+    if (expr.id === id) return true;
+
+    switch (expr.type) {
+      case ExpressionType.BinaryExpression:
+        return (
+          isIdInExpression(expr.left, id) || isIdInExpression(expr.right, id)
+        );
+      case ExpressionType.UnaryExpression:
+        return isIdInExpression(expr.operand, id);
+      case ExpressionType.FunctionCall:
+        return expr.args.some((arg) => isIdInExpression(arg, id));
+      case ExpressionType.BuiltinCall:
+        return isIdInExpression(expr.operand, id);
+      case ExpressionType.TableDefinition:
+        return expr.rows.some((row) =>
+          row.input.some((inp) => inp.some((item) => item.id === id))
+        );
+      default:
+        return false;
+    }
+  };
+
+  const findStatementById = (
+    ast: Statement[],
+    id: number
+  ): Statement | undefined => {
+    for (const stmt of ast) {
+      if (stmt.id === id) return stmt;
+
+      switch (stmt.type) {
+        case StatementType.FunctionDefinition:
+        case StatementType.Assignment:
+          if (isIdInExpression(stmt.expression, id)) return stmt;
+          break;
+
+        case StatementType.BuiltinCall:
+          if (stmt.args.some((arg) => isIdInExpression(arg, id))) return stmt;
+          break;
+
+        case StatementType.Comment:
+          continue;
+      }
+    }
+    return undefined;
+  };
+
+  const stmt = findStatementById(ast, token.pos);
+  if (!stmt) return;
+
+  switch (stmt.type) {
+    case StatementType.FunctionDefinition:
+      {
+        const interpreter = new Interpreter(ast);
+        interpreter.run();
+      
+        const funcName = stmt.name;
+        
+        const table = interpreter.generateTruthTable(funcName);
+        if(!table) return;
+
+        const inputs = table.inputs.join(" ");
+        const rows = table.rows
+          .map(([input, output]) => `${input.join(" ")} | ${output}`)
+          .join("\n");
+      
+        const result = `${inputs} | ${funcName}\n${"-".repeat(inputs.length + funcName.length + 3)}\n${rows}`;
+      
+        return new vscode.Hover(
+          `📘 **Truth Table for \`${funcName}\`**\n\n\`\`\`txt\n${result}\n\`\`\``
+        );
+      }
+      break;
+    case StatementType.BuiltinCall:
+      break;
+    case StatementType.Comment:
+    case StatementType.Assignment:
+      return;
+  }
 };
 
 export function activate(context: vscode.ExtensionContext) {
@@ -213,6 +314,10 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const hoverProvider = vscode.languages.registerHoverProvider("minilogic", {
+    provideHover: actionHoverExpr,
+  });
+
   /*
   TODO LIST:
 
@@ -223,8 +328,6 @@ export function activate(context: vscode.ExtensionContext) {
   - Add autocomplete for builtin functions
   - Show truth table when hover on function or on operators
   - Add quick fix for errors
-  - Show warnings when the optimizer can optimize the code for example:
-      A or 1 = 1 so the optimizer higlight the expression and suggest to replace it with 1
   */
 
   context.subscriptions.push(
@@ -232,7 +335,8 @@ export function activate(context: vscode.ExtensionContext) {
     formatProvider,
     changeWatcher,
     loadWatcher,
-    codeActionProvider
+    codeActionProvider,
+    hoverProvider
   );
 }
 

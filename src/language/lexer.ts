@@ -164,6 +164,37 @@ class Lexer {
     return this.tokens[id];
   }
 
+  public getTokenByPosition(line: number, column: number): Token | undefined {
+    const exact = Object.values(this.tokens).find(
+      (token) => token.line === line && token.column === column
+    );
+    if (exact) return exact;
+
+    const sameLineBefore = Object.values(this.tokens)
+      .filter((token) => token.line === line && token.column <= column)
+      .sort((a, b) => b.column - a.column)[0];
+
+    if (sameLineBefore) return sameLineBefore;
+
+    const sameLineAfter = Object.values(this.tokens)
+      .filter((token) => token.line === line && token.column > column)
+      .sort((a, b) => a.column - b.column)[0];
+
+    if (sameLineAfter) return sameLineAfter;
+
+    const beforeLine = Object.values(this.tokens)
+      .filter((token) => token.line < line)
+      .sort((a, b) => b.line - a.line || b.column - a.column)[0];
+
+    if (beforeLine) return beforeLine;
+
+    const afterLine = Object.values(this.tokens)
+      .filter((token) => token.line > line)
+      .sort((a, b) => a.line - b.line || a.column - b.column)[0];
+
+    return afterLine;
+  }
+
   public getNextToken(noerror = false): Token {
     while (this.currentChar !== null) {
       if (/\s/.test(this.currentChar)) {
@@ -223,7 +254,7 @@ class Lexer {
       if (noerror) {
         return this.pushToken(this.pos, { type: TokenType.EOF, value: "" });
       }
-      
+
       throw new Error(
         `Unexpected character '${this.currentChar}' at line ${this.line}, column ${this.column}`
       );

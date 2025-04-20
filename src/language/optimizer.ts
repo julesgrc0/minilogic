@@ -101,33 +101,35 @@ class Optimizer {
         case StatementType.FunctionDefinition:
           functions[stmt.name] = stmt.id;
 
-          const parameters = stmt.parameters.filter(
-            (param) =>
-              this.findUsedVariables(param, false, stmt.expression) == true
-          );
-          const unsedParameters = stmt.parameters.filter(
-            (param) => !parameters.includes(param)
-          );
+          if (stmt.expression.type != ExpressionType.TableDefinition) {
+            const parameters = stmt.parameters.filter(
+              (param) =>
+                this.findUsedVariables(param, false, stmt.expression) == true
+            );
+            const unsedParameters = stmt.parameters.filter(
+              (param) => !parameters.includes(param)
+            );
 
-          if (parameters.length != stmt.parameters.length) {
-            if (parameters.length == 0) {
-              this.optimizations.push({
-                type: StatementOptimizationType.REMOVE,
-                message: `This function does not use any parameters`,
-                fixId: stmt.id,
-              });
-            } else {
-              this.optimizations.push({
-                type: StatementOptimizationType.CHANGE,
-                line: this.getStatmentToString({
-                  ...stmt,
-                  parameters,
-                }),
-                message: `This function has ${unsedParameters.length} unused parameters: ${unsedParameters.join(
-                  ", "
-                )}`,
-                fixId: stmt.id,
-              });
+            if (parameters.length != stmt.parameters.length) {
+              if (parameters.length == 0) {
+                this.optimizations.push({
+                  type: StatementOptimizationType.REMOVE,
+                  message: `This function does not use any parameters`,
+                  fixId: stmt.id,
+                });
+              } else {
+                this.optimizations.push({
+                  type: StatementOptimizationType.CHANGE,
+                  line: this.getStatmentToString({
+                    ...stmt,
+                    parameters,
+                  }),
+                  message: `This function has ${
+                    unsedParameters.length
+                  } unused parameters: ${unsedParameters.join(", ")}`,
+                  fixId: stmt.id,
+                });
+              }
             }
           }
 
@@ -144,7 +146,11 @@ class Optimizer {
               continue;
             }
             for (const exprItem of expr) {
-              const found = this.findUsedFunctions(funcname, exprItem);
+              const found = this.findUsedFunctions(
+                funcname,
+                stmt.type == StatementType.BuiltinCall,
+                exprItem
+              );
               if (found) {
                 functions[funcname] = -1;
                 break;
@@ -233,26 +239,32 @@ class Optimizer {
     }
   }
 
-  private findUsedFunctions(funcname: string, expr: Expression): boolean {
+  private findUsedFunctions(
+    funcname: string,
+    builtin: boolean,
+    expr: Expression
+  ): boolean {
     switch (expr.type) {
       case ExpressionType.Number:
         return false;
       case ExpressionType.Variable:
-        return false;
+        return builtin && !expr.reference && expr.name === funcname;
       case ExpressionType.BinaryExpression:
         return (
-          this.findUsedFunctions(funcname, expr.left) ||
-          this.findUsedFunctions(funcname, expr.right)
+          this.findUsedFunctions(funcname, builtin, expr.left) ||
+          this.findUsedFunctions(funcname, builtin, expr.right)
         );
       case ExpressionType.UnaryExpression:
-        return this.findUsedFunctions(funcname, expr.operand);
+        return this.findUsedFunctions(funcname, builtin, expr.operand);
       case ExpressionType.FunctionCall:
         if (expr.name === funcname) {
           return true;
         }
-        return expr.args.some((arg) => this.findUsedFunctions(funcname, arg));
+        return expr.args.some((arg) =>
+          this.findUsedFunctions(funcname, builtin, arg)
+        );
       case ExpressionType.BuiltinCall:
-        return this.findUsedFunctions(funcname, expr.operand);
+        return this.findUsedFunctions(funcname, true, expr.operand);
       case "Error":
       case ExpressionType.TableDefinition:
         return false;

@@ -3,8 +3,7 @@ import {
   Statement,
   StatementType,
   Expression,
-  ExpressionType,
-  Parser,
+  ExpressionType
 } from "./parser";
 
 class Formatter {

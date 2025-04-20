@@ -267,11 +267,29 @@ class SemanticAnalyzer {
         break;
 
       case BuiltinType.Table:
+        for (const arg of stmt.args) {
+          switch (arg.type) {
+            case ExpressionType.TableDefinition:
+            case ExpressionType.Number:
+            case "Error":                
+              this.pushError(arg.id, "Table function does not accept " + arg.type.toLowerCase());
+              break;
+              case ExpressionType.Variable:
+                if( !(!arg.reference && this.functions.hasOwnProperty(arg.name)) ) {
+                  this.pushError(arg.id, "Table function does not accept " + arg.type.toLowerCase());
+                }
+                break;
+          }
+        }
+        break;
       case BuiltinType.Export:
         break;
       case BuiltinType.Simplify:
       case BuiltinType.ToNand:
       case BuiltinType.ToNor:
+        if (stmt.args.length !== 1) {
+          this.pushError(stmt.id, `Builtin function ${stmt.name} must have 1 argument`);
+        }
         this.pushError(
           stmt.id,
           `Invalid usage of builtin function ${stmt.name}, can't be used in statements`

@@ -6,5 +6,16 @@ F(B) = B xor A*
 
 F2(A, B) = TO_NAND(A and B or not B xnor A)
 
-SHOW(TO_NAND(A and B), TO_NAND(not A))
-TABLE(F, A, A*, not A, A and not B* or B)
+# SHOW(TO_NAND(A and B), TO_NAND(not A))
+# TABLE(F2,F, not A, A and not B* or B)
+
+G(A, B) = [
+    00, 1,
+    01, 0,
+    10, 0,
+    11, 1,
+]
+
+TABLE(G, A or A)
+TABLE(F2)
+

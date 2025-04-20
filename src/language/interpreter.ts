@@ -5,11 +5,8 @@ import {
   Expression,
   ExpressionType,
   BinaryNumber,
-  Parser,
   BuiltinType,
-  builtinFunctions,
 } from "./parser";
-import { SemanticAnalyzer } from "./semantic_analyzer";
 
 class Interpreter {
   private variables = new Map<string, BinaryNumber>();
@@ -23,6 +20,41 @@ class Interpreter {
       this.execute(stmt);
     }
     return this.output;
+  }
+
+  public generateTruthTable(funcName: string): {
+    inputs: string[];
+    rows: [number[], number][];
+  } | null {
+    const func = this.functions.get(funcName);
+    if (!func || func.type != StatementType.FunctionDefinition) return null;
+
+    const inputs = func.parameters;
+    const rows: [number[], number][] = [];
+
+    const combinations = this.getCombinations(inputs.length);
+    for (const combination of combinations) {
+      const scope = new Map<string, BinaryNumber>();
+      inputs.forEach((input, i) => {
+        scope.set(input, combination[i]);
+      });
+      const result = this.evalExpression(func.expression, scope);
+      rows.push([combination, result]);
+    }
+
+    return { inputs, rows };
+  }
+
+  private getCombinations(n: number): BinaryNumber[][] {
+    const result: BinaryNumber[][] = [];
+    for (let i = 0; i < 1 << n; i++) {
+      const row: BinaryNumber[] = [];
+      for (let j = 0; j < n; j++) {
+        row.push(((i >> j) & 1) as BinaryNumber);
+      }
+      result.push(row);
+    }
+    return result;
   }
 
   private execute(stmt: Statement): void {
@@ -113,14 +145,25 @@ class Interpreter {
                 this.output.push(
                   this.evalTableToString(func.expression, func.name)
                 );
+              } else {
+                this.output.push(
+                  "Error: Cannot convert " + arg.type + " to table\n"
+                );
               }
+              break;
+
+            case ExpressionType.FunctionCall:
+            case ExpressionType.BuiltinCall:
+            case ExpressionType.UnaryExpression:
+            case ExpressionType.BinaryExpression:
+              this.output.push(this.evalTableToString(arg));
               break;
             case ExpressionType.Number:
             case ExpressionType.TableDefinition:
             case "Error":
-              throw new Error(`Invalid argument for table: ${arg.type}`);
-            default:
-              this.output.push(this.evalTableToString(arg));
+              this.output.push(
+                "Error: Cannot convert " + arg.type + " to table\n"
+              );
               break;
           }
         }
@@ -137,11 +180,14 @@ class Interpreter {
     expr: Expression,
     funcname: string | null = null
   ): string {
-    if (
-      expr.type !== ExpressionType.BinaryExpression &&
-      expr.type !== ExpressionType.UnaryExpression &&
-      expr.type !== ExpressionType.Variable
-    ) {
+    const exclude = [
+      ExpressionType.TableDefinition,
+      ExpressionType.Number,
+      ExpressionType.Variable,
+      ExpressionType.FunctionCall,
+      "Error",
+    ];
+    if (exclude.includes(expr.type)) {
       throw new Error(
         "Only logical expressions can be converted to a truth table"
       );
@@ -156,7 +202,10 @@ class Interpreter {
       } else if (e.type === ExpressionType.BinaryExpression) {
         collectVariables(e.left);
         collectVariables(e.right);
-      } else if (e.type === ExpressionType.UnaryExpression) {
+      } else if (
+        e.type === ExpressionType.UnaryExpression ||
+        e.type === ExpressionType.BuiltinCall
+      ) {
         collectVariables(e.operand);
       }
     };
@@ -186,7 +235,7 @@ class Interpreter {
       const row = binaryString.split("").join(" ") + " | " + result;
       rows.push(row);
     }
-    console.log(rows);
+
     return rows.join("\n") + "\n";
   }
 
@@ -516,7 +565,9 @@ class Interpreter {
       case ExpressionType.FunctionCall:
         return {
           ...expr,
-          args: expr.args.map((arg) => this.convertExpressionToLogicGate(arg, operator)),
+          args: expr.args.map((arg) =>
+            this.convertExpressionToLogicGate(arg, operator)
+          ),
         };
 
       case ExpressionType.BuiltinCall:
