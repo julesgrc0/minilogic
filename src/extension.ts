@@ -542,8 +542,6 @@ export function activate(context: vscode.ExtensionContext) {
 
   - Add autocomplete for table definition, for example:
       if the user types F(A, B) = [ when the "[" is typed the autecomplete generate the table filled with 0
-  - Add autocomplete for functions and variable
-  - Add autocomplete for variable reference and variable inside function
   - Add quick fix for errors
   */
 
