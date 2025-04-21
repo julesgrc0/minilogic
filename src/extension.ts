@@ -640,7 +640,7 @@ export function activate(context: vscode.ExtensionContext) {
     "8",
     "9"
   );
-  
+
   /*
   TODO LIST:
   - Add quick fix for errors

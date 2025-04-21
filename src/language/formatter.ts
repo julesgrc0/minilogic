@@ -1,10 +1,5 @@
 import { Lexer, Operators } from "./lexer";
-import {
-  Statement,
-  StatementType,
-  Expression,
-  ExpressionType
-} from "./parser";
+import { Statement, StatementType, Expression, ExpressionType } from "./parser";
 
 class Formatter {
   private lastStmt: Statement | null = null;
@@ -12,9 +7,7 @@ class Formatter {
   constructor(private ast: Statement[]) {}
 
   public format(): string {
-    return this.ast
-      .map((stmt) => this.formatStatement(stmt))
-      .join("\n");
+    return this.ast.map((stmt) => this.formatStatement(stmt)).join("\n");
   }
 
   private formatStatement(stmt: Statement): string {

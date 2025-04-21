@@ -30,9 +30,12 @@ class Interpreter {
     return this.functions;
   }
 
-  public callFunction(name: string, ...args: BinaryNumber[]): BinaryNumber | null {
+  public callFunction(
+    name: string,
+    ...args: BinaryNumber[]
+  ): BinaryNumber | null {
     const func = this.functions.get(name);
-    
+
     if (!func || func.type !== StatementType.FunctionDefinition) return null;
     if (func.parameters.length !== args.length) return null;
 
@@ -44,7 +47,7 @@ class Interpreter {
     return this.evalExpression(func.expression, localVariables);
   }
 
-  public generateTruthTableFromFunction(funcName: string)  {
+  public generateTruthTableFromFunction(funcName: string) {
     const func = this.functions.get(funcName);
     if (!func || func.type != StatementType.FunctionDefinition) return null;
 
@@ -54,7 +57,10 @@ class Interpreter {
     );
   }
 
-  public generateTruthTableFromExpression(variables: string[], expr: Expression): {
+  public generateTruthTableFromExpression(
+    variables: string[],
+    expr: Expression
+  ): {
     inputs: string[];
     rows: [number[], number][];
   } | null {
@@ -85,7 +91,6 @@ class Interpreter {
     }
     return result;
   }
-  
 
   private execute(stmt: Statement): void {
     switch (stmt.type) {
@@ -173,10 +178,17 @@ class Interpreter {
                 const func = this.functions.get(arg.name)!;
                 if (func.type !== StatementType.FunctionDefinition) continue;
 
-                if(func.expression.type == ExpressionType.Number)
-                {
+                if (func.expression.type == ExpressionType.Number) {
                   this.output.push(
-                    "Error: Cannot convert function " +  func.name + " to truth table because " + func.name + "(" + func.parameters.join(", ") + ") = " + func.expression.value + "\n"
+                    "Error: Cannot convert function " +
+                      func.name +
+                      " to truth table because " +
+                      func.name +
+                      "(" +
+                      func.parameters.join(", ") +
+                      ") = " +
+                      func.expression.value +
+                      "\n"
                   );
                   continue;
                 }

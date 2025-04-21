@@ -196,7 +196,6 @@ class Lexer {
   }
 
   public getFirstTokenAtLine(line: number): Token | undefined {
-
     const firstToken = Object.values(this.tokens)
       .filter((token) => token.line === line)
       .sort((a, b) => a.column - b.column)[0];

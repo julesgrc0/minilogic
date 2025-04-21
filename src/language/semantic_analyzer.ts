@@ -109,9 +109,13 @@ class SemanticAnalyzer {
       error = true;
     }
     if (stmt.parameters.length === 0) {
-      this.pushError(stmt.id, `Function ${stmt.name} has no parameters`, this.createErrorFix(stmt.id, {
-        parameters: ["A"],
-      }));
+      this.pushError(
+        stmt.id,
+        `Function ${stmt.name} has no parameters`,
+        this.createErrorFix(stmt.id, {
+          parameters: ["A"],
+        })
+      );
       return;
     }
 
@@ -287,14 +291,22 @@ class SemanticAnalyzer {
           switch (arg.type) {
             case ExpressionType.TableDefinition:
             case ExpressionType.Number:
-            case "Error":                
-              this.pushError(arg.id, "Table function does not accept " + arg.type.toLowerCase());
+            case "Error":
+              this.pushError(
+                arg.id,
+                "Table function does not accept " + arg.type.toLowerCase()
+              );
               break;
-              case ExpressionType.Variable:
-                if( !(!arg.reference && this.functions.hasOwnProperty(arg.name)) ) {
-                  this.pushError(arg.id, "Table function does not accept " + arg.type.toLowerCase());
-                }
-                break;
+            case ExpressionType.Variable:
+              if (
+                !(!arg.reference && this.functions.hasOwnProperty(arg.name))
+              ) {
+                this.pushError(
+                  arg.id,
+                  "Table function does not accept " + arg.type.toLowerCase()
+                );
+              }
+              break;
           }
         }
         break;
@@ -304,7 +316,10 @@ class SemanticAnalyzer {
       case BuiltinType.ToNand:
       case BuiltinType.ToNor:
         if (stmt.args.length !== 1) {
-          this.pushError(stmt.id, `Builtin function ${stmt.name} must have 1 argument`);
+          this.pushError(
+            stmt.id,
+            `Builtin function ${stmt.name} must have 1 argument`
+          );
         }
         this.pushError(
           stmt.id,
