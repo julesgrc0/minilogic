@@ -7,44 +7,30 @@ import {
   StatementType,
   ExpressionType,
 } from "./parser";
+import { getStatmentToString, isSameExpressions, QuickFixStatement, QuickFixType } from "./utils";
 
-enum StatementOptimizationType {
-  CHANGE,
-  REMOVE,
-}
 
-type StatementOptimization = (
-  | {
-      type: StatementOptimizationType.CHANGE;
-      line: string;
-    }
-  | {
-      type: StatementOptimizationType.REMOVE;
-    }
-) & {
-  message: string;
-  fixId: number;
-};
+
 
 class Optimizer {
-  private optimizations: StatementOptimization[] = [];
+  private optimizations: QuickFixStatement[] = [];
 
   constructor(private ast: Statement[]) {}
 
-  public optimize(): StatementOptimization[] {
+  public optimize(): QuickFixStatement[] {
     for (const stmt of this.ast) {
       if (
         stmt.type === StatementType.Assignment ||
         stmt.type === StatementType.FunctionDefinition
       ) {
         const deadCodeExpr = this.removeDeadCode(stmt.expression);
-        if (!this.isSameExpressions(stmt.expression, deadCodeExpr)) {
-          const exprStr = this.getStatmentToString({
+        if (!isSameExpressions(stmt.expression, deadCodeExpr)) {
+          const exprStr = getStatmentToString({
             ...stmt,
             expression: deadCodeExpr,
           });
           this.optimizations.push({
-            type: StatementOptimizationType.CHANGE,
+            type: QuickFixType.CHANGE,
             line: exprStr,
             message: `This expression can be simplified to ${exprStr}`,
             fixId: stmt.id,
@@ -53,13 +39,13 @@ class Optimizer {
         }
 
         const simplifyNot = this.simplifyNot(stmt.expression);
-        if (!this.isSameExpressions(stmt.expression, simplifyNot)) {
-          const exprStr = this.getStatmentToString({
+        if (!isSameExpressions(stmt.expression, simplifyNot)) {
+          const exprStr = getStatmentToString({
             ...stmt,
             expression: simplifyNot,
           });
           this.optimizations.push({
-            type: StatementOptimizationType.CHANGE,
+            type: QuickFixType.CHANGE,
             line: exprStr,
             message: `This expression can be simplified to ${exprStr}`,
             fixId: stmt.id,
@@ -71,7 +57,7 @@ class Optimizer {
     const unusedFunctions = this.getUnusedFunctions();
     for (const id of unusedFunctions) {
       this.optimizations.push({
-        type: StatementOptimizationType.REMOVE,
+        type: QuickFixType.REMOVE,
         message: `This function is never used`,
         fixId: id,
       });
@@ -81,7 +67,7 @@ class Optimizer {
 
     for (const id of unusedVariables) {
       this.optimizations.push({
-        type: StatementOptimizationType.REMOVE,
+        type: QuickFixType.REMOVE,
         message: `This variable is never used`,
         fixId: id,
       });
@@ -90,9 +76,6 @@ class Optimizer {
     return this.optimizations;
   }
 
-  private getStatmentToString(stmt: Statement): string {
-    return new Formatter([stmt]).format().replace(/\n/g, " ").trim();
-  }
 
   private getUnusedFunctions(): number[] {
     const functions: Record<string, number> = {};
@@ -113,14 +96,14 @@ class Optimizer {
             if (parameters.length != stmt.parameters.length) {
               if (parameters.length == 0) {
                 this.optimizations.push({
-                  type: StatementOptimizationType.REMOVE,
+                  type: QuickFixType.REMOVE,
                   message: `This function does not use any parameters`,
                   fixId: stmt.id,
                 });
               } else {
                 this.optimizations.push({
-                  type: StatementOptimizationType.CHANGE,
-                  line: this.getStatmentToString({
+                  type: QuickFixType.CHANGE,
+                  line: getStatmentToString({
                     ...stmt,
                     parameters,
                   }),
@@ -203,9 +186,6 @@ class Optimizer {
     return Object.values(variables).filter((key) => key != -1);
   }
 
-  private isSameExpressions(expr1: Expression, expr2: Expression): boolean {
-    return JSON.stringify(expr1) === JSON.stringify(expr2);
-  }
 
   private findUsedVariables(
     varname: string,
@@ -353,6 +333,7 @@ class Optimizer {
     }
     return expr;
   }
+
 }
 
-export { Optimizer, StatementOptimizationType, StatementOptimization };
+export { Optimizer, QuickFixType };

@@ -7,6 +7,7 @@ import {
   BinaryNumber,
   BuiltinType,
 } from "./parser";
+import { convertExpressionToLogicGate, convertTableDefinitionToExpression, getCombinations } from "./utils";
 
 class Interpreter {
   private variables = new Map<string, BinaryNumber>();
@@ -67,7 +68,7 @@ class Interpreter {
     const inputs = variables;
     const rows: [number[], number][] = [];
 
-    const combinations = this.getCombinations(inputs.length);
+    const combinations = getCombinations(inputs.length);
     for (const combination of combinations) {
       const scope = new Map<string, BinaryNumber>();
       inputs.forEach((input, i) => {
@@ -78,18 +79,6 @@ class Interpreter {
     }
 
     return { inputs, rows };
-  }
-
-  public getCombinations(n: number): BinaryNumber[][] {
-    const result: BinaryNumber[][] = [];
-    for (let i = 0; i < 1 << n; i++) {
-      const row: BinaryNumber[] = [];
-      for (let j = n - 1; j >= 0; j--) {
-        row.push(((i >> j) & 1) as BinaryNumber);
-      }
-      result.push(row);
-    }
-    return result;
   }
 
   private execute(stmt: Statement): void {
@@ -138,10 +127,7 @@ class Interpreter {
     if (stmt.expression.type === ExpressionType.TableDefinition) {
       this.functions.set(stmt.name, {
         ...stmt,
-        expression: this.convertTableToFunction(
-          stmt.parameters,
-          stmt.expression
-        ),
+        expression: convertTableDefinitionToExpression(stmt)!,
       });
 
       return;
@@ -402,13 +388,13 @@ class Interpreter {
     switch (expr.name) {
       case BuiltinType.ToNand:
         return this.evalExpressionToString(
-          this.convertExpressionToLogicGate(expr.operand, Operators.Nand),
+          convertExpressionToLogicGate(expr.operand, Operators.Nand),
           replaceVar,
           allowall
         );
       case BuiltinType.ToNor:
         return this.evalExpressionToString(
-          this.convertExpressionToLogicGate(expr.operand, Operators.Nor),
+          convertExpressionToLogicGate(expr.operand, Operators.Nor),
           replaceVar,
           allowall
         );
@@ -526,108 +512,6 @@ class Interpreter {
     }
   }
 
-  private convertExpressionToLogicGate(
-    expr: Expression,
-    operator: Operators
-  ): Expression {
-    const logicGate = (a: Expression, b: Expression): Expression => ({
-      type: ExpressionType.BinaryExpression,
-      operator,
-      left: a,
-      right: b,
-      id: -1,
-    });
-
-    switch (expr.type) {
-      case ExpressionType.Variable:
-      case ExpressionType.Number:
-      case ExpressionType.TableDefinition:
-      case "Error":
-        return expr;
-
-      case ExpressionType.UnaryExpression: {
-        const inner = this.convertExpressionToLogicGate(expr.operand, operator);
-        return logicGate(inner, inner);
-      }
-
-      case ExpressionType.BinaryExpression: {
-        const left = this.convertExpressionToLogicGate(expr.left, operator);
-        const right = this.convertExpressionToLogicGate(expr.right, operator);
-
-        switch (expr.operator) {
-          case Operators.And:
-            if (operator == Operators.Nand) {
-              const a = logicGate(left, right);
-              return logicGate(a, a);
-            } else {
-              return logicGate(logicGate(left, left), logicGate(right, right));
-            }
-
-          case Operators.Or:
-            if (operator == Operators.Nand) {
-              return logicGate(logicGate(left, left), logicGate(right, right));
-            } else {
-              const a = logicGate(left, right);
-              return logicGate(a, a);
-            }
-
-          case Operators.Xor: {
-            const a = logicGate(left, right);
-            const b = logicGate(left, a);
-            const c = logicGate(right, a);
-            return logicGate(b, c);
-          }
-
-          case Operators.Xnor: {
-            const a = logicGate(left, right);
-            const b = logicGate(left, a);
-            const c = logicGate(right, a);
-            const d = logicGate(b, c);
-            return logicGate(d, d);
-          }
-
-          case Operators.Nand:
-            if (operator == Operators.Nor) {
-              const a = logicGate(
-                logicGate(left, left),
-                logicGate(right, right)
-              );
-              return logicGate(a, a);
-            }
-            return expr;
-
-          case Operators.Nor:
-            if (operator == Operators.Nand) {
-              const a = logicGate(
-                logicGate(left, left),
-                logicGate(right, right)
-              );
-              return logicGate(a, a);
-            }
-            return expr;
-
-          case Operators.Not:
-            return expr;
-          default:
-            return expr;
-        }
-      }
-
-      case ExpressionType.FunctionCall:
-        return {
-          ...expr,
-          args: expr.args.map((arg) =>
-            this.convertExpressionToLogicGate(arg, operator)
-          ),
-        };
-
-      case ExpressionType.BuiltinCall:
-        return {
-          ...expr,
-          operand: this.convertExpressionToLogicGate(expr.operand, operator),
-        };
-    }
-  }
 
   private evalFunctionCall(
     expr: Expression,
@@ -655,67 +539,6 @@ class Interpreter {
     return this.evalExpression(func.expression, localVariables);
   }
 
-  private convertTableToFunction(
-    params: string[],
-    expr: Expression
-  ): Expression {
-    if (expr.type !== ExpressionType.TableDefinition) {
-      throw new Error(`Expected TableDefinition, got ${expr.type}`);
-    }
-
-    const minterms: Expression[] = [];
-
-    for (const row of expr.rows) {
-      if (row.output[0] === 1) {
-        const terms: Expression[] = [];
-
-        for (let i = 0; i < row.input[0].length; i++) {
-          const bit = row.input[0][i].value;
-          const variable: Expression = {
-            type: ExpressionType.Variable,
-            name: params[i],
-            reference: false,
-            id: -1,
-          };
-
-          terms.push(
-            bit === 1
-              ? variable
-              : {
-                  type: ExpressionType.UnaryExpression,
-                  operator: Operators.Not,
-                  operand: variable,
-                  id: -1,
-                }
-          );
-        }
-
-        const andExpr = terms.reduce((a, b) => ({
-          type: ExpressionType.BinaryExpression,
-          operator: Operators.And,
-          left: a,
-          right: b,
-          id: -1,
-        }));
-
-        minterms.push(andExpr);
-      }
-    }
-
-    if (minterms.length === 0) {
-      return { type: ExpressionType.Number, value: 0, id: -1 };
-    }
-
-    const finalExpr = minterms.reduce((a, b) => ({
-      type: ExpressionType.BinaryExpression,
-      operator: Operators.Or,
-      left: a,
-      right: b,
-      id: -1,
-    }));
-
-    return finalExpr;
-  }
 }
 
 export { Interpreter };

@@ -8,12 +8,12 @@ import {
   Parser,
   Statement,
   StatementType,
-  TableRow,
 } from "./language/parser";
 import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
 import { Formatter } from "./language/formatter";
-import { Optimizer, StatementOptimizationType } from "./language/optimizer";
+import { Optimizer } from "./language/optimizer";
+import { getCombinations, QuickFixType } from "./language/utils";
 
 const isIdInExpression = (expr: Expression, id: number): boolean => {
   if (expr.id === id) return true;
@@ -206,29 +206,56 @@ const actionQuickFix = (
   const ast = parser.parseProgram();
   const optimizations = new Optimizer(ast).optimize();
 
-  for (const diag of context.diagnostics) {
-    if (diag.severity === vscode.DiagnosticSeverity.Warning) {
-      const fix = new vscode.CodeAction(
-        diag.message,
-        vscode.CodeActionKind.QuickFix
-      );
+  const semanticAnalyzer = new SemanticAnalyzer(ast);
+  semanticAnalyzer.analyze();
 
-      const fixedCode = optimizations.find((opt) => opt.fixId === diag.code);
+  for (const diag of context.diagnostics) {
+    if (
+      diag.severity === vscode.DiagnosticSeverity.Warning ||
+      diag.severity === vscode.DiagnosticSeverity.Error
+    ) {
+      const fixedCode =
+        diag.severity === vscode.DiagnosticSeverity.Warning
+          ? optimizations.find((opt) => opt.fixId === diag.code)
+          : semanticAnalyzer.getFix(diag.code as number);
       if (!fixedCode) continue;
 
       const token = lexer.getTokenById(diag.code as number);
       if (!token) continue;
 
-      const range = new vscode.Range(
-        new vscode.Position(token.line, 0),
-        document.lineAt(token.line).range.end
+      const fix = new vscode.CodeAction(
+        fixedCode.message,
+        vscode.CodeActionKind.QuickFix
       );
 
       fix.edit = new vscode.WorkspaceEdit();
-      if (fixedCode.type === StatementOptimizationType.REMOVE) {
+      let range = new vscode.Range(
+        new vscode.Position(token.line, 0),
+        document.lineAt(token.line).range.end
+      );
+      if (fixedCode.type === QuickFixType.REMOVE) {
         fix.edit.delete(document.uri, range);
+      } else if (fixedCode.type === QuickFixType.CHANGE) {
+        if (typeof fixedCode.line !== "string") {
+          const at = lexer.getTokenById(fixedCode.line.at);
+          console.log("AT TOKEN", JSON.stringify(at))
+          if (at) {
+            range = new vscode.Range(
+              new vscode.Position(at.line, at.column -  (at.value.length + 1)),
+              new vscode.Position(at.line, at.column)
+            );
+          }
+        }
+
+        fix.edit.replace(
+          document.uri,
+          range,
+          typeof fixedCode.line == "string"
+            ? fixedCode.line
+            : fixedCode.line.value
+        );
       } else {
-        fix.edit.replace(document.uri, range, fixedCode.line);
+        continue;
       }
 
       fix.diagnostics = [diag];
@@ -348,7 +375,7 @@ const actionAutocompleteCode = (
     );
 
     const txt = new vscode.SnippetString();
-    const cmbs = interpreter.getCombinations(stmt.parameters.length);
+    const cmbs = getCombinations(stmt.parameters.length);
     txt.appendText("\n");
     for (const cmb of cmbs) {
       txt.appendText(`${cmb.join("")}, 0\n`);
@@ -640,11 +667,6 @@ export function activate(context: vscode.ExtensionContext) {
     "8",
     "9"
   );
-
-  /*
-  TODO LIST:
-  - Add quick fix for errors
-  */
 
   context.subscriptions.push(
     runCommand,

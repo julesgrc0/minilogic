@@ -2,15 +2,15 @@ import { Lexer, Operators } from "./lexer";
 import { Statement, StatementType, Expression, ExpressionType } from "./parser";
 
 class Formatter {
-  private lastStmt: Statement | null = null;
+  private static lastStmt: Statement | null = null;
 
   constructor(private ast: Statement[]) {}
 
   public format(): string {
-    return this.ast.map((stmt) => this.formatStatement(stmt)).join("\n");
+    return this.ast.map((stmt) => Formatter.formatStatement(stmt)).join("\n");
   }
 
-  private formatStatement(stmt: Statement): string {
+  public static formatStatement(stmt: Statement): string {
     const newLine = this.lastStmt?.type !== stmt.type ? "\n" : "";
     this.lastStmt = stmt;
 
@@ -34,7 +34,7 @@ class Formatter {
     }
   }
 
-  private formatExpression(expr: Expression): string {
+  public static formatExpression(expr: Expression): string {
     switch (expr.type) {
       case ExpressionType.Number:
         return expr.value.toString();
