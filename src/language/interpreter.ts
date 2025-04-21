@@ -172,12 +172,21 @@ class Interpreter {
               if (this.functions.has(arg.name)) {
                 const func = this.functions.get(arg.name)!;
                 if (func.type !== StatementType.FunctionDefinition) continue;
+
+                if(func.expression.type == ExpressionType.Number)
+                {
+                  this.output.push(
+                    "Error: Cannot convert function " +  func.name + " to truth table because " + func.name + "(" + func.parameters.join(", ") + ") = " + func.expression.value + "\n"
+                  );
+                  continue;
+                }
+
                 this.output.push(
                   this.evalTableToString(func.expression, func.name)
                 );
               } else {
                 this.output.push(
-                  "Error: Cannot convert " + arg.type + " to table\n"
+                  "Error: Cannot convert " + arg.type + " to truth table\n"
                 );
               }
               break;

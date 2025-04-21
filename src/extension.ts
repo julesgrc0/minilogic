@@ -338,26 +338,21 @@ const actionAutocompleteCode = (
       !stmt ||
       stmt.type !== StatementType.FunctionDefinition ||
       stmt.expression.type !== ExpressionType.TableDefinition
-    ){
-      console.log(stmt)
+    ) {
       return;
     }
-     
 
     const table = new vscode.CompletionItem(
       "Generate Table Function",
       vscode.CompletionItemKind.Text
     );
 
-
     const txt = new vscode.SnippetString();
     const cmbs = interpreter.getCombinations(stmt.parameters.length);
-    console.log(cmbs);
     txt.appendText("\n");
     for (const cmb of cmbs) {
       txt.appendText(`${cmb.join("")}, 0\n`);
     }
-
 
     table.insertText = txt;
     table.detail = "Empty Table";
@@ -645,11 +640,9 @@ export function activate(context: vscode.ExtensionContext) {
     "8",
     "9"
   );
+  
   /*
   TODO LIST:
-
-  - Add autocomplete for table definition, for example:
-      if the user types F(A, B) = [ when the "[" is typed the autecomplete generate the table filled with 0
   - Add quick fix for errors
   */
 
