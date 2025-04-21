@@ -44,14 +44,21 @@ class Interpreter {
     return this.evalExpression(func.expression, localVariables);
   }
 
-  public generateTruthTable(funcName: string): {
-    inputs: string[];
-    rows: [number[], number][];
-  } | null {
+  public generateTruthTableFromFunction(funcName: string)  {
     const func = this.functions.get(funcName);
     if (!func || func.type != StatementType.FunctionDefinition) return null;
 
-    const inputs = func.parameters;
+    return this.generateTruthTableFromExpression(
+      func.parameters,
+      func.expression
+    );
+  }
+
+  public generateTruthTableFromExpression(variables: string[], expr: Expression): {
+    inputs: string[];
+    rows: [number[], number][];
+  } | null {
+    const inputs = variables;
     const rows: [number[], number][] = [];
 
     const combinations = this.getCombinations(inputs.length);
@@ -60,24 +67,25 @@ class Interpreter {
       inputs.forEach((input, i) => {
         scope.set(input, combination[i]);
       });
-      const result = this.evalExpression(func.expression, scope);
+      const result = this.evalExpression(expr, scope);
       rows.push([combination, result]);
     }
 
     return { inputs, rows };
   }
 
-  private getCombinations(n: number): BinaryNumber[][] {
+  public getCombinations(n: number): BinaryNumber[][] {
     const result: BinaryNumber[][] = [];
     for (let i = 0; i < 1 << n; i++) {
       const row: BinaryNumber[] = [];
-      for (let j = 0; j < n; j++) {
+      for (let j = n - 1; j >= 0; j--) {
         row.push(((i >> j) & 1) as BinaryNumber);
       }
       result.push(row);
     }
     return result;
   }
+  
 
   private execute(stmt: Statement): void {
     switch (stmt.type) {

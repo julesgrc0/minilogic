@@ -16,9 +16,28 @@ G(A, B) = [
     11, 1,
 ]
 
-veryLongFuncName(A) = A or not A*  and A nand F(A) equal F2()
+veryLongFuncName(A) = A or not A*  and A nand F(A)
 
 Var = A or B
+
+F3(A, C, B, D) = [
+0000, 0
+0001, 0
+0010, 0
+0011, 0
+0100, 0
+0101, 0
+0110, 0
+0111, 0
+1000, 0
+1001, 0
+1010, 0
+1011, 0
+1100, 0
+1101, 0
+1110, 0
+1111, 0
+]
 
 TABLE(G, A or A)
 TABLE(F2)

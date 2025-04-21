@@ -115,6 +115,22 @@ class SemanticAnalyzer {
       return;
     }
 
+    const params = new Set<string>();
+    for (const param of stmt.parameters) {
+      if (params.has(param)) {
+        this.pushError(
+          stmt.id,
+          `Duplicate parameter ${param} in function ${stmt.name}`,
+          this.createErrorFix(stmt.id, {
+            parameters: [], // TODO: suggest a name
+          })
+        );
+        error = true;
+      } else {
+        params.add(param);
+      }
+    }
+
     this.checkExpression(stmt.expression, stmt.parameters);
 
     if (error) return;

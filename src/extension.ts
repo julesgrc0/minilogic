@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { Lexer } from "./language/lexer";
+import { Lexer, Operators } from "./language/lexer";
 import {
   BuiltinType,
   Expression,
@@ -8,6 +8,7 @@ import {
   Parser,
   Statement,
   StatementType,
+  TableRow,
 } from "./language/parser";
 import { SemanticAnalyzer } from "./language/semantic_analyzer";
 import { Interpreter } from "./language/interpreter";
@@ -29,9 +30,11 @@ const isIdInExpression = (expr: Expression, id: number): boolean => {
     case ExpressionType.BuiltinCall:
       return isIdInExpression(expr.operand, id);
     case ExpressionType.TableDefinition:
-      return expr.rows.some((row) =>
-        row.input.some((inp) => inp.some((item) => item.id === id))
-      );
+      return expr.rows.some((row) => {
+        return row.input.some((inp) => {
+          return inp.some((item) => item.id === id);
+        });
+      });
     default:
       return false;
   }
@@ -260,7 +263,7 @@ const actionHoverExpr = (
 
     const funcName = stmt.name;
 
-    const table = interpreter.generateTruthTable(funcName);
+    const table = interpreter.generateTruthTableFromFunction(funcName);
     if (!table) return;
 
     const inputs = table.inputs.join(" ");
@@ -326,18 +329,51 @@ const actionAutocompleteCode = (
 
   const completions: vscode.CompletionItem[] = [];
 
-  
+  if (context.triggerCharacter === "[") {
+    const token = lexer.getFirstTokenAtLine(position.line);
+    if (!token) return;
 
+    const stmt = findStatementById(ast, token.pos);
+    if (
+      !stmt ||
+      stmt.type !== StatementType.FunctionDefinition ||
+      stmt.expression.type !== ExpressionType.TableDefinition
+    ){
+      console.log(stmt)
+      return;
+    }
+     
+
+    const table = new vscode.CompletionItem(
+      "Generate Table Function",
+      vscode.CompletionItemKind.Text
+    );
+
+
+    const txt = new vscode.SnippetString();
+    const cmbs = interpreter.getCombinations(stmt.parameters.length);
+    console.log(cmbs);
+    txt.appendText("\n");
+    for (const cmb of cmbs) {
+      txt.appendText(`${cmb.join("")}, 0\n`);
+    }
+
+
+    table.insertText = txt;
+    table.detail = "Empty Table";
+
+    completions.push(table);
+    return completions;
+  }
   const token = lexer.getFirstTokenAtLine(position.line);
   if (!token) return;
-    
+
   const stmt = findStatementById(ast, token.pos);
-  if (!stmt)  return;
-  
-  try{
+  if (!stmt) return;
+
+  try {
     const nextStmt = ast[ast.indexOf(stmt) + 1];
-    console.log(nextStmt);
-    if(nextStmt.type != "Error") {
+    if (nextStmt.type != "Error") {
       const opts = lexer.getOperators();
       for (const opt of opts) {
         const item = new vscode.CompletionItem(
@@ -345,12 +381,67 @@ const actionAutocompleteCode = (
           vscode.CompletionItemKind.Operator
         );
         item.detail = "Operator";
+
+        const doc = new vscode.MarkdownString();
+        doc.appendMarkdown(`**${opt}**\n\n`);
+
+        const expr: Expression =
+          opt == Operators.Not
+            ? {
+                type: ExpressionType.UnaryExpression,
+                operator: opt,
+                operand: {
+                  type: ExpressionType.Variable,
+                  name: "A",
+                  reference: false,
+                  id: -1,
+                },
+                id: -1,
+              }
+            : {
+                type: ExpressionType.BinaryExpression,
+                operator: opt,
+                left: {
+                  type: ExpressionType.Variable,
+                  name: "A",
+                  reference: false,
+                  id: 0,
+                },
+                right: {
+                  type: ExpressionType.Variable,
+                  name: "B",
+                  reference: false,
+                  id: -1,
+                },
+                id: -1,
+              };
+        const exprStr = opt == Operators.Not ? "not A" : "A " + opt + " B";
+        const vars = opt == Operators.Not ? ["A"] : ["A", "B"];
+
+        const truthtable = interpreter.generateTruthTableFromExpression(
+          vars,
+          expr
+        );
+        if (truthtable) {
+          const inputs = truthtable.inputs.join(" ");
+          const rows = truthtable.rows
+            .map(([input, output]) => `${input.join(" ")} | ${output}`)
+            .join("\n");
+
+          doc.appendCodeblock(
+            `${inputs} | ${exprStr}\n${"-".repeat(
+              inputs.length + exprStr.length + 3
+            )}\n${rows}`,
+            "txt"
+          );
+        }
+
+        item.documentation = doc;
         completions.push(item);
       }
       return completions;
     }
-  }catch{}
-  
+  } catch {}
 
   const variables = interpreter.getVariables();
   for (const variable of variables.keys()) {
@@ -392,9 +483,9 @@ const actionAutocompleteCode = (
       continue;
     }
 
-
     const funcitem = functions.get(func);
-    if (!funcitem || funcitem.type !== StatementType.FunctionDefinition) continue;
+    if (!funcitem || funcitem.type !== StatementType.FunctionDefinition)
+      continue;
 
     const item = new vscode.CompletionItem(
       func + `(${funcitem.parameters.join(", ")})`,
@@ -402,7 +493,7 @@ const actionAutocompleteCode = (
     );
     item.detail = "Function";
 
-    const truthtable = interpreter.generateTruthTable(func);
+    const truthtable = interpreter.generateTruthTableFromFunction(func);
     if (truthtable) {
       const doc = new vscode.MarkdownString();
       doc.appendMarkdown(`**${func}**(${funcitem.parameters.join(", ")})\n\n`);
@@ -424,6 +515,22 @@ const actionAutocompleteCode = (
 
     completions.push(item);
   }
+
+  const const0 = new vscode.CompletionItem(
+    "0",
+    vscode.CompletionItemKind.Constant
+  );
+  const0.detail = "Constant";
+  const0.documentation = new vscode.MarkdownString("**0**: Constant value");
+  completions.push(const0);
+
+  const const1 = new vscode.CompletionItem(
+    "1",
+    vscode.CompletionItemKind.Constant
+  );
+  const1.detail = "Constant";
+  const1.documentation = new vscode.MarkdownString("**1**: Constant value");
+  completions.push(const1);
 
   return completions;
 };
@@ -468,6 +575,7 @@ export function activate(context: vscode.ExtensionContext) {
     },
     "(",
     ")",
+    "[",
     "=",
     " ",
     ",",
