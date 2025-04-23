@@ -14,7 +14,7 @@ enum TokenType {
   BinaryNumberList = "BinaryNumberList",
   String = "String",
 
-  Equals = "Equals",
+  Equal = "Equal",
   Star = "Star",
   Comma = "Comma",
   Bar = "Bar",
@@ -86,6 +86,7 @@ type Token = {
     }
   | {
       type: TokenType.EOF;
+      value: null;
     }
 );
 class Lexer {
@@ -98,7 +99,7 @@ class Lexer {
   private keywords = new Set(Object.values(Keywords));
   private operators = new Set(Object.values(Operators));
   private symbols = {
-    "=": TokenType.Equals,
+    "=": TokenType.Equal,
     "*": TokenType.Star,
     ",": TokenType.Comma,
     "|": TokenType.Bar,
@@ -108,7 +109,7 @@ class Lexer {
     "]": TokenType.RBracket,
   };
 
-  constructor(private input: string) {
+  public constructor(private input: string) {
     this.currentChar = this.input[this.pos] ?? null;
   }
 
@@ -161,6 +162,7 @@ class Lexer {
       type: TokenType.EOF,
       start: this.getPosition(),
       end: this.getPosition(),
+      value: null,
     });
 
     return this.tokens;
@@ -301,36 +303,4 @@ class Lexer {
   }
 }
 
-const test = () => {
-  const program = `
-        // This is a comment
-
-        F(A, B) = [
-            00, 1
-            01, 1
-            10, 1
-            11, 0
-        ]
-
-        NewFunction(S | A, B) = [
-            0, A
-            1, B
-        ]
-
-        PRINT(F(A, B))
-
-        SHOW(F)
-
-        TABLE(F, A or B)
-
-        PRINT(\"Hello, World!\\n from Lexer {0}\", A or B)
-
-        A = 1
-        B = 1 or F(0 and 1, A xor 0 and (not A or A))
-
-        G(A, B) = B* or A and not B xor B*
-    `;
-  const lexer = new Lexer(program);
-  console.log(lexer.tokenize());
-};
-test();
+export { Lexer, TokenType, Token, Operators, Keywords, BinaryNumber, Position };
