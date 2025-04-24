@@ -151,7 +151,7 @@ class SemanticAnalyzer {
       });
     }
 
-    const expectedLength = Math.pow(stmt.subparameters.length, 2);
+    const expectedLength = Math.pow(stmt.parameters.length, 2);
     if (stmt.table.length !== expectedLength) {
       error = true;
       this.errors.push({
@@ -407,6 +407,31 @@ const test = () => {
     F(A, B) = A or not B and A*
 
     PRINT(A, TO_NAND(B))
+
+
+
+    A = 1
+    B = 0
+    
+    F(B) = B xor A*
+    
+    F2(A, B) = TO_NAND(A and B or not B xnor A)
+    
+    # SHOW(TO_NAND(A and B), TO_NAND(not A))
+    # TABLE(F2,F, not A, A and not B* or B)
+    
+    
+    
+    
+
+    G(A, B) = [
+        00, 1
+        01, 0
+        10, 0
+        11, 1
+    ]
+   
+
     `;
   const lexer = new Lexer(program);
   const tokens = lexer.tokenize();

@@ -122,7 +122,7 @@ class Lexer {
 
       const start = this.getPosition();
 
-      if (this.currentChar === "/") {
+      if (this.currentChar === "#") {
         this.tokens.push(this.comment());
         continue;
       }

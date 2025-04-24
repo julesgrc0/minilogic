@@ -183,12 +183,14 @@ class Parser {
       case TokenType.Keyword:
         return this.parseBuiltinCall();
       case TokenType.Comment:
+        const cmt = this.current;
+        this.eat(TokenType.Comment);
         return {
           type: StatementType.Comment,
-          value: this.current.value,
+          value: cmt.value,
           range: {
-            start: this.current.start,
-            end: this.current.end,
+            start: cmt.start,
+            end: cmt.end,
           },
         };
       case TokenType.Identifier: {
@@ -281,9 +283,9 @@ class Parser {
       }
     }
     this.eat(TokenType.RParen);
-    this.eat(TokenType.Equal);
+    this.current = this.eat(TokenType.Equal);
 
-    if (subparameters.length > 0) {
+    if (subparameters.length > 0 || this.current.type === TokenType.LBracket) {
       return {
         type: StatementType.FunctionTable,
         name: name.value as string,
@@ -311,7 +313,6 @@ class Parser {
 
   private parseFunctionTable(): FunctionTableBody {
     this.eat(TokenType.LBracket);
-
     const table: FunctionTableBody = [];
     while (this.current.type !== TokenType.RBracket) {
       let index: BinaryNumber[] = [];
@@ -452,7 +453,7 @@ class Parser {
         this.next();
         return {
           type: ExpressionType.Error,
-          message: `Unexpected token when parsing expression: ${token}`,
+          message: `Unexpected token when parsing expression: ${token.type}`,
           range: {
             start: token.start,
             end: token.end,
@@ -491,4 +492,11 @@ class Parser {
   }
 }
 
-export { Parser, Statement, Expression, StatementType, ExpressionType, FunctionTableBody };
+export {
+  Parser,
+  Statement,
+  Expression,
+  StatementType,
+  ExpressionType,
+  FunctionTableBody,
+};
