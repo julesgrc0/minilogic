@@ -300,20 +300,40 @@ class SemanticAnalyzer {
           range: expr.range,
         });
       }
-    } else {
-      if (!this.variables.has(expr.name)) {
-        this.errors.push({
-          message: `Variable ${expr.name} not defined`,
-          range: expr.range,
-        });
-      }
+      return;
+    }
 
-      if (expr.reference) {
-        this.errors.push({
-          message: `Unexpected variable reference ${expr.name}*`,
-          range: expr.range,
-        });
+    if (isBuiltin) {
+      const validBuiltins = [
+        Keywords.Show,
+        Keywords.Table,
+        Keywords.Graph,
+        Keywords.Export,
+      ];
+      
+      if (validBuiltins.includes(builtin)) {
+        if (expr.reference) {
+          this.errors.push({
+            message: `Unexpected variable reference ${expr.name}*`,
+            range: expr.range,
+          });
+        }
+        return;
       }
+    }
+
+    if (!this.variables.has(expr.name)) {
+      this.errors.push({
+        message: `Variable ${expr.name} not defined`,
+        range: expr.range,
+      });
+    }
+
+    if (expr.reference) {
+      this.errors.push({
+        message: `Unexpected variable reference ${expr.name}*`,
+        range: expr.range,
+      });
     }
   }
 
@@ -410,27 +430,49 @@ const test = () => {
 
 
 
-    A = 1
-    B = 0
-    
-    F(B) = B xor A*
-    
-    F2(A, B) = TO_NAND(A and B or not B xnor A)
-    
-    # SHOW(TO_NAND(A and B), TO_NAND(not A))
-    # TABLE(F2,F, not A, A and not B* or B)
-    
-    
-    
-    
-
-    G(A, B) = [
-        00, 1
-        01, 0
-        10, 0
-        11, 1
-    ]
    
+A = 1
+B = 0
+
+F(B) = B xor A*
+
+F2(A, B) = TO_NAND(A and B or not B xnor A)
+
+# SHOW(TO_NAND(A and B), TO_NAND(not A))
+# TABLE(F2,F, not A, A and not B* or B)
+
+G(A, B) = [
+    00, 1
+    01, 0
+    10, 0
+    11, 1
+]
+
+veryLongFuncName(A) = A or not A*  and A nand F(A)
+
+Var = A or B
+
+F3(A, C, B, D) = [
+0000, 0
+0001, 0
+0010, 0
+0011, 0
+0100, 0
+0101, 0
+0110, 1
+0111, 0
+1000, 0
+1001, 0
+1010, 0
+1011, 0
+1100, 1
+1101, 0
+1110, 0
+1111, 0
+]
+
+SHOW(F3(A, C, B, D))
+TABLE(F3)
 
     `;
   const lexer = new Lexer(program);
