@@ -4,6 +4,7 @@
         "plaintext": true,
         "markdown": true,
         "scminput": false,
+        "minilogic": false,
         "typescript": true
     }
 }

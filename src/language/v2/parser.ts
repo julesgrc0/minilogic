@@ -327,10 +327,7 @@ class Parser {
       this.eat(TokenType.Comma);
       const value = this.parseExpression();
       table.push({ index, value });
-
-      console.log("TABLE", index);
     }
-    console.log(table);
 
     this.eat(TokenType.RBracket);
     return table;
@@ -398,7 +395,7 @@ class Parser {
         const name = this.current;
         this.current = this.eat(TokenType.Identifier);
         if (this.current.type === TokenType.LParen) {
-          return this.parseFunctionCallExpression(name.value);
+          return this.parseFunctionCallExpression(name);
         }
 
         let reference = false;
@@ -418,7 +415,9 @@ class Parser {
         };
       }
       case TokenType.Keyword: {
-        return this.parseFunctionCallExpression(this.current.value, true);
+        const name = this.current;
+        this.eat(TokenType.Keyword);
+        return this.parseFunctionCallExpression(name, true);
       }
       case TokenType.LParen: {
         this.eat(TokenType.LParen);
@@ -464,15 +463,10 @@ class Parser {
   }
 
   private parseFunctionCallExpression(
-    name: string,
+    name: Token,
     builtin: boolean = false
   ): Expression {
-    const start = this.current.start;
-    if (builtin) {
-      this.eat(TokenType.Keyword);
-    } else {
-      this.eat(TokenType.Identifier);
-    }
+    const start = name.start;
 
     this.eat(TokenType.LParen);
     const parameters: Expression[] = [];
@@ -487,7 +481,7 @@ class Parser {
     this.eat(TokenType.RParen);
     return {
       type: builtin ? ExpressionType.BuiltinCall : ExpressionType.FunctionCall,
-      name: name as any,
+      name: name.value as any,
       parameters,
       range: {
         start,
@@ -497,33 +491,4 @@ class Parser {
   }
 }
 
-const test = () => {
-  const program = `
-
-  
-        F(A, B) = A or not B and C
-        F(A, B | C) = [
-            0010, 1
-            0011, C or not A and B*
-            0100, A and B* | C
-            000001010, 1
-        ]
-
-        `;
-  // B = A or not B and C or D*
-
-  // F(A, B | C) = [
-  //     0010, 1
-  //     0011, C or not A and B*
-  //     0100, A and B* | C
-  //     000001010, 1
-  // ]
-  //
-  const lexer = new Lexer(program);
-  const tokens = lexer.tokenize();
-
-  const parser = new Parser(tokens);
-    const statements = parser.parse();
-    // console.log(JSON.stringify(parser.parse(), null, 2));
-};
-test();
+export { Parser, Statement, Expression, StatementType, ExpressionType, FunctionTableBody };
