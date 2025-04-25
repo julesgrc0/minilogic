@@ -1,19 +1,79 @@
-import { Expression, ExpressionType } from "./parser";
-import { BinaryNumber, Keywords, Lexer, Position } from "./lexer";
-import { Parser, Statement, StatementType } from "./parser";
+import { Keywords } from "../lexer";
+import {
+  Expression,
+  ExpressionType,
+  Statement,
+  StatementType,
+} from "../parser";
+
+enum SemanticErrorType {
+  VariableNotDefined,
+  VariableReferenceNotDefined,
+  VariableReference,
+  VariableParameterNotDefined,
+
+  VariableAlreadyDeclared,
+  VariableAmbiguousName,
+
+  FunctionAlreadyDeclared,
+  FunctionAmbiguousName,
+  FunctionDuplicateParameters,
+  FunctionDuplicateSubParameters,
+
+  FunctionTableInvalidLength,
+  FunctionTableDuplicateIndexes,
+
+  BuiltinInvalidUsage,
+  BuiltinInvalidParameterLength,
+  BuiltinInvalidParameterType,
+
+  StringInExpression,
+  Error,
+}
 
 type SemanticError = {
+  type: SemanticErrorType;
   message: string;
-  range: {
-    start: Position;
-    end: Position;
-  };
+  object: Statement | Expression;
 };
 
-class SemanticAnalyzer {
+class SemanticErrorAnalyzer {
   private variables: Set<string> = new Set();
   private functions: Set<string> = new Set();
+
   private errors: SemanticError[] = [];
+  private messages: Record<SemanticErrorType, string> = {
+    [SemanticErrorType.VariableNotDefined]: "Variable {0} not defined",
+    [SemanticErrorType.VariableReferenceNotDefined]:
+      "Variable {0}* not defined",
+    [SemanticErrorType.VariableReference]: "Unexpected variable reference {0}*",
+    [SemanticErrorType.VariableParameterNotDefined]:
+      "Parameter {0} not defined",
+    [SemanticErrorType.VariableAlreadyDeclared]:
+      "Variable {0} already declared",
+    [SemanticErrorType.VariableAmbiguousName]:
+      "Ambiguous variable name {0} already used as a function",
+    [SemanticErrorType.FunctionAlreadyDeclared]:
+      "Function {0} already declared",
+    [SemanticErrorType.FunctionAmbiguousName]:
+      "Ambiguous function name {0} already used as a variable",
+    [SemanticErrorType.FunctionDuplicateParameters]:
+      "Duplicate parameter names in function {0}",
+    [SemanticErrorType.FunctionDuplicateSubParameters]:
+      "Duplicate subparameter names in function {0}",
+    [SemanticErrorType.FunctionTableInvalidLength]:
+      "Function {0} table length mismatch. Expected {1}, got {2}",
+    [SemanticErrorType.FunctionTableDuplicateIndexes]:
+      "Duplicate index {0} in function table {1}",
+    [SemanticErrorType.BuiltinInvalidUsage]: "Invalid usage of builtin {0}",
+    [SemanticErrorType.BuiltinInvalidParameterLength]:
+      "Invalid number of parameters for builtin {0}. Expected {1}, got {2}",
+    [SemanticErrorType.BuiltinInvalidParameterType]:
+      "Invalid parameter type for builtin {0}, expected {1}",
+    [SemanticErrorType.StringInExpression]:
+      "Invalid usage of string {0} in expression",
+    [SemanticErrorType.Error]: "",
+  };
 
   public constructor(private program: Statement[]) {}
 
@@ -33,15 +93,32 @@ class SemanticAnalyzer {
           this.checkBuiltinCallStatement(stmt);
           break;
         case StatementType.Error:
-          this.errors.push({
-            message: stmt.message,
-            range: stmt.range,
-          });
+          this.pushError(SemanticErrorType.Error, null, stmt);
           break;
       }
     }
 
     return this.errors;
+  }
+
+  private pushError(
+    type: SemanticErrorType,
+    replace: string[] | null,
+    object: Statement | Expression
+  ): void {
+    let message = this.messages[type];
+
+    if (replace) {
+      replace.forEach((r, i) => {
+        message = message.replace(`{${i}}`, r);
+      });
+    }
+
+    this.errors.push({
+      type,
+      message,
+      object,
+    });
   }
 
   private checkVariableStatement(stmt: Statement) {
@@ -50,18 +127,20 @@ class SemanticAnalyzer {
     let error = false;
     if (this.variables.has(stmt.name)) {
       error = true;
-      this.errors.push({
-        message: `Variable ${stmt.name} already declared`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.VariableAlreadyDeclared,
+        [stmt.name],
+        stmt
+      );
     }
 
     if (this.functions.has(stmt.name)) {
       error = true;
-      this.errors.push({
-        message: `Ambiguous variable name ${stmt.name} already declared as a function`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.VariableAmbiguousName,
+        [stmt.name],
+        stmt
+      );
     }
 
     if (!error) {
@@ -77,18 +156,20 @@ class SemanticAnalyzer {
     let error = false;
     if (this.functions.has(stmt.name)) {
       error = true;
-      this.errors.push({
-        message: `Function ${stmt.name} already declared`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionAlreadyDeclared,
+        [stmt.name],
+        stmt
+      );
     }
 
     if (this.variables.has(stmt.name)) {
       error = true;
-      this.errors.push({
-        message: `Ambiguous function name ${stmt.name} already declared as a variable`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionAmbiguousName,
+        [stmt.name],
+        stmt
+      );
     }
 
     const hasDuplicateParams = stmt.parameters.some(
@@ -96,10 +177,11 @@ class SemanticAnalyzer {
     );
     if (hasDuplicateParams) {
       error = true;
-      this.errors.push({
-        message: `Duplicate parameter names in function ${stmt.name}`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionDuplicateParameters,
+        [stmt.name],
+        stmt
+      );
     }
 
     if (!error) {
@@ -115,18 +197,20 @@ class SemanticAnalyzer {
     let error = false;
     if (this.functions.has(stmt.name)) {
       error = true;
-      this.errors.push({
-        message: `Function ${stmt.name} already declared`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionAlreadyDeclared,
+        [stmt.name],
+        stmt
+      );
     }
 
     if (this.variables.has(stmt.name)) {
       error = true;
-      this.errors.push({
-        message: `Ambiguous function name ${stmt.name} already declared as a variable`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionAmbiguousName,
+        [stmt.name],
+        stmt
+      );
     }
 
     const hasDuplicateParams = stmt.parameters.some(
@@ -134,10 +218,11 @@ class SemanticAnalyzer {
     );
     if (hasDuplicateParams) {
       error = true;
-      this.errors.push({
-        message: `Duplicate parameter names in function ${stmt.name}`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionDuplicateParameters,
+        [stmt.name],
+        stmt
+      );
     }
 
     const hasDuplicateSubParams = stmt.subparameters.some(
@@ -145,19 +230,21 @@ class SemanticAnalyzer {
     );
     if (hasDuplicateSubParams) {
       error = true;
-      this.errors.push({
-        message: `Duplicate subparameter names in function ${stmt.name}`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionDuplicateSubParameters,
+        [stmt.name],
+        stmt
+      );
     }
 
     const expectedLength = Math.pow(stmt.parameters.length, 2);
     if (stmt.table.length !== expectedLength) {
       error = true;
-      this.errors.push({
-        message: `Function ${stmt.name} table length mismatch. Expected ${expectedLength}, got ${stmt.table.length}`,
-        range: stmt.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionTableInvalidLength,
+        [stmt.name, expectedLength.toString(), stmt.table.length.toString()],
+        stmt
+      );
     }
 
     const indexes = new Set<string>();
@@ -165,10 +252,11 @@ class SemanticAnalyzer {
       const index = row.index.join("");
       if (indexes.has(index)) {
         error = true;
-        this.errors.push({
-          message: `Duplicate index ${index} in function ${stmt.name} table`,
-          range: stmt.range,
-        });
+        this.pushError(
+          SemanticErrorType.FunctionTableDuplicateIndexes,
+          [index, stmt.name],
+          stmt
+        );
       }
 
       this.checkExpression(row.value, stmt.subparameters);
@@ -189,43 +277,44 @@ class SemanticAnalyzer {
       Keywords.SolveSOP,
     ];
     if (invalidBuiltins.includes(stmt.name)) {
-      this.errors.push({
-        message: `Invalid usage of builtin ${stmt.name}`,
-        range: stmt.range,
-      });
+      this.pushError(SemanticErrorType.BuiltinInvalidUsage, [stmt.name], stmt);
       return;
     }
 
     switch (stmt.name) {
       case Keywords.Import:
         if (stmt.parameters.length !== 1) {
-          this.errors.push({
-            message: `Invalid number of parameters for builtin ${stmt.name}`,
-            range: stmt.range,
-          });
+          this.pushError(
+            SemanticErrorType.BuiltinInvalidParameterLength,
+            [stmt.name, "1", stmt.parameters.length.toString()],
+            stmt
+          );
           return;
         }
 
         if (stmt.parameters[0].type !== ExpressionType.String) {
-          this.errors.push({
-            message: `Invalid parameter type for builtin ${stmt.name}, expected string`,
-            range: stmt.range,
-          });
+          this.pushError(
+            SemanticErrorType.BuiltinInvalidParameterType,
+            [stmt.name, "string"],
+            stmt
+          );
         }
         break;
       case Keywords.Export:
         if (stmt.parameters.length !== 2) {
-          this.errors.push({
-            message: `Invalid number of parameters for builtin ${stmt.name}`,
-            range: stmt.range,
-          });
+          this.pushError(
+            SemanticErrorType.BuiltinInvalidParameterLength,
+            [stmt.name, "2", stmt.parameters.length.toString()],
+            stmt
+          );
           return;
         }
         if (stmt.parameters[0].type !== ExpressionType.String) {
-          this.errors.push({
-            message: `Invalid parameter type for builtin ${stmt.name}, expected string as first argument`,
-            range: stmt.range,
-          });
+          this.pushError(
+            SemanticErrorType.BuiltinInvalidParameterType,
+            [stmt.name, "string"],
+            stmt
+          );
         }
         this.checkExpression(stmt.parameters[1], [], stmt.name);
         break;
@@ -268,10 +357,7 @@ class SemanticAnalyzer {
         this.checkExpression(expr.operand, parameters, builtin);
         break;
       case ExpressionType.Error:
-        this.errors.push({
-          message: expr.message,
-          range: expr.range,
-        });
+        this.pushError(SemanticErrorType.Error, null, expr);
         break;
     }
   }
@@ -288,17 +374,19 @@ class SemanticAnalyzer {
 
     if (isFunction) {
       if (expr.reference && !this.variables.has(expr.name)) {
-        this.errors.push({
-          message: `Variable ${expr.name}* not defined`,
-          range: expr.range,
-        });
+        this.pushError(
+          SemanticErrorType.VariableReferenceNotDefined,
+          [expr.name],
+          expr
+        );
       }
 
       if (!expr.reference && !parameters.includes(expr.name)) {
-        this.errors.push({
-          message: `Parameter ${expr.name} not defined`,
-          range: expr.range,
-        });
+        this.pushError(
+          SemanticErrorType.VariableParameterNotDefined,
+          [expr.name],
+          expr
+        );
       }
       return;
     }
@@ -310,30 +398,25 @@ class SemanticAnalyzer {
         Keywords.Graph,
         Keywords.Export,
       ];
-      
+
       if (validBuiltins.includes(builtin)) {
         if (expr.reference) {
-          this.errors.push({
-            message: `Unexpected variable reference ${expr.name}*`,
-            range: expr.range,
-          });
+          this.pushError(
+            SemanticErrorType.VariableReference,
+            [expr.name],
+            expr
+          );
         }
         return;
       }
     }
 
     if (!this.variables.has(expr.name)) {
-      this.errors.push({
-        message: `Variable ${expr.name} not defined`,
-        range: expr.range,
-      });
+      this.pushError(SemanticErrorType.VariableNotDefined, [expr.name], expr);
     }
 
     if (expr.reference) {
-      this.errors.push({
-        message: `Unexpected variable reference ${expr.name}*`,
-        range: expr.range,
-      });
+      this.pushError(SemanticErrorType.VariableReference, [expr.name], expr);
     }
   }
 
@@ -345,10 +428,11 @@ class SemanticAnalyzer {
     if (expr.type !== ExpressionType.FunctionCall) return;
 
     if (!this.functions.has(expr.name)) {
-      this.errors.push({
-        message: `Function ${expr.name} not defined`,
-        range: expr.range,
-      });
+      this.pushError(
+        SemanticErrorType.FunctionAlreadyDeclared,
+        [expr.name],
+        expr
+      );
     }
 
     for (const param of expr.parameters) {
@@ -372,18 +456,16 @@ class SemanticAnalyzer {
       Keywords.SolveSOP,
     ];
     if (!validBuiltins.includes(builtin)) {
-      this.errors.push({
-        message: `Invalid usage of builtin ${builtin}`,
-        range: expr.range,
-      });
+      this.pushError(SemanticErrorType.BuiltinInvalidUsage, [builtin], expr);
       return;
     }
 
     if (expr.parameters.length !== 1) {
-      this.errors.push({
-        message: `Invalid number of parameters for builtin ${builtin}, expected 1`,
-        range: expr.range,
-      });
+      this.pushError(
+        SemanticErrorType.BuiltinInvalidParameterLength,
+        [builtin, "1", expr.parameters.length.toString()],
+        expr
+      );
       return;
     }
 
@@ -397,10 +479,11 @@ class SemanticAnalyzer {
     if (expr.type !== ExpressionType.Number) return;
 
     if (builtin == Keywords.Table) {
-      this.errors.push({
-        message: `Invalid usage of builtin ${builtin}, cannot pass number as parameter`,
-        range: expr.range,
-      });
+      this.pushError(
+        SemanticErrorType.BuiltinInvalidParameterType,
+        [builtin, "number"],
+        expr
+      );
     }
   }
 
@@ -410,78 +493,20 @@ class SemanticAnalyzer {
   ) {
     if (expr.type !== ExpressionType.String) return;
 
-    if (builtin != Keywords.Print) {
-      this.errors.push({
-        message: `Invalid usage of builtin ${builtin}, cannot pass string as parameter`,
-        range: expr.range,
-      });
+    const validBuiltins = [Keywords.Import, Keywords.Export, Keywords.Print];
+
+    if (builtin == undefined) {
+      this.pushError(SemanticErrorType.StringInExpression, [expr.value], expr);
+    } else if (!validBuiltins.includes(builtin)) {
+      {
+        this.pushError(
+          SemanticErrorType.BuiltinInvalidParameterType,
+          [builtin, "string"],
+          expr
+        );
+      }
     }
   }
 }
 
-const test = () => {
-  const program = `
-    A = 0
-    B = 1
-
-    F(A, B) = A or not B and A*
-
-    PRINT(A, TO_NAND(B))
-
-
-
-   
-A = 1
-B = 0
-
-F(B) = B xor A*
-
-F2(A, B) = TO_NAND(A and B or not B xnor A)
-
-# SHOW(TO_NAND(A and B), TO_NAND(not A))
-# TABLE(F2,F, not A, A and not B* or B)
-
-G(A, B) = [
-    00, 1
-    01, 0
-    10, 0
-    11, 1
-]
-
-veryLongFuncName(A) = A or not A*  and A nand F(A)
-
-Var = A or B
-
-F3(A, C, B, D) = [
-0000, 0
-0001, 0
-0010, 0
-0011, 0
-0100, 0
-0101, 0
-0110, 1
-0111, 0
-1000, 0
-1001, 0
-1010, 0
-1011, 0
-1100, 1
-1101, 0
-1110, 0
-1111, 0
-]
-
-SHOW(F3(A, C, B, D))
-TABLE(F3)
-
-    `;
-  const lexer = new Lexer(program);
-  const tokens = lexer.tokenize();
-
-  const parser = new Parser(tokens);
-  const ast = parser.parse();
-
-  const semanticAnalyzer = new SemanticAnalyzer(ast);
-  console.log(semanticAnalyzer.analyze());
-};
-test();
+export { SemanticErrorAnalyzer, SemanticError, SemanticErrorType };
