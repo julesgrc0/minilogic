@@ -235,7 +235,6 @@ class SemanticWarningAnalyser {
     expr: Expression,
     needReference: boolean = false
   ) {
-    const checkExpression = (expr: Expression) => {
       switch (expr.type) {
         case ExpressionType.Variable:
           if (
@@ -253,17 +252,16 @@ class SemanticWarningAnalyser {
           ) {
             this.functions[expr.name].count++;
           }
-          expr.parameters.forEach((param) => checkExpression(param));
+          expr.parameters.forEach((param) => this.updateExpressionCount(param, true));
           break;
         case ExpressionType.Binary:
-          checkExpression(expr.left);
-          checkExpression(expr.right);
+          this.updateExpressionCount(expr.left, needReference);
+          this.updateExpressionCount(expr.right, needReference);
           break;
         case ExpressionType.Unary:
-          checkExpression(expr.operand);
+          this.updateExpressionCount(expr.operand, needReference);
           break;
       }
-    };
   }
 
   private removeDeadExpression(expr: Expression): Expression | null {
