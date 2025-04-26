@@ -1,5 +1,12 @@
 import { parse } from "path";
 
+type CodeFix = {
+  start: Position;
+  end: Position;
+  message: string;
+  value: string | null;
+}
+
 type Position = {
   line: number;
   column: number;
@@ -303,4 +310,4 @@ class Lexer {
   }
 }
 
-export { Lexer, TokenType, Token, Operators, Keywords, BinaryNumber, Position };
+export { Lexer, TokenType, Token, Operators, Keywords, BinaryNumber, Position, CodeFix };

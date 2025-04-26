@@ -35,6 +35,7 @@ type SemanticError = {
   type: SemanticErrorType;
   message: string;
   object: Statement | Expression;
+  target?: Statement | Expression;
 };
 
 class SemanticErrorAnalyzer {
@@ -104,7 +105,8 @@ class SemanticErrorAnalyzer {
   private pushError(
     type: SemanticErrorType,
     replace: string[] | null,
-    object: Statement | Expression
+    object: Statement | Expression,
+    target: Statement | Expression | undefined = undefined
   ): void {
     let message = this.messages[type];
 
@@ -118,6 +120,7 @@ class SemanticErrorAnalyzer {
       type,
       message,
       object,
+      target
     });
   }
 
@@ -147,7 +150,7 @@ class SemanticErrorAnalyzer {
       this.variables.add(stmt.name);
     }
 
-    this.checkExpression(stmt.value);
+    this.checkExpression(stmt, stmt.value);
   }
 
   private checkFunctionStatement(stmt: Statement) {
@@ -188,7 +191,7 @@ class SemanticErrorAnalyzer {
       this.functions.add(stmt.name);
     }
 
-    this.checkExpression(stmt.body, stmt.parameters);
+    this.checkExpression(stmt, stmt.body, stmt.parameters);
   }
 
   private checkFunctionTableStatement(stmt: Statement) {
@@ -259,7 +262,7 @@ class SemanticErrorAnalyzer {
         );
       }
 
-      this.checkExpression(row.value, stmt.subparameters);
+      this.checkExpression(stmt, row.value, stmt.subparameters);
     }
 
     if (!error) {
@@ -316,12 +319,12 @@ class SemanticErrorAnalyzer {
             stmt
           );
         }
-        this.checkExpression(stmt.parameters[1], [], stmt.name);
+        this.checkExpression(stmt, stmt.parameters[1], [], stmt.name);
         break;
       default:
         {
           for (const param of stmt.parameters) {
-            this.checkExpression(param, [], stmt.name);
+            this.checkExpression(stmt, param, [], stmt.name);
           }
         }
         break;
@@ -329,19 +332,20 @@ class SemanticErrorAnalyzer {
   }
 
   private checkExpression(
+    parent: Statement,
     expr: Expression,
     parameters: string[] = [],
     builtin: Keywords | undefined = undefined
   ) {
     switch (expr.type) {
       case ExpressionType.Variable:
-        this.checkVariableExpression(expr, parameters, builtin);
+        this.checkVariableExpression(parent, expr, parameters, builtin);
         break;
       case ExpressionType.FunctionCall:
-        this.checkFunctionCallExpression(expr, parameters, builtin);
+        this.checkFunctionCallExpression(parent, expr, parameters, builtin);
         break;
       case ExpressionType.BuiltinCall:
-        this.checkBuiltinCallExpression(expr, parameters, expr.name);
+        this.checkBuiltinCallExpression(parent, expr, parameters, expr.name);
         break;
       case ExpressionType.Number:
         this.checkNumberExpression(expr, builtin);
@@ -350,11 +354,11 @@ class SemanticErrorAnalyzer {
         this.checkStringExpression(expr, builtin);
         break;
       case ExpressionType.Binary:
-        this.checkExpression(expr.left, parameters, builtin);
-        this.checkExpression(expr.right, parameters, builtin);
+        this.checkExpression(parent, expr.left, parameters, builtin);
+        this.checkExpression(parent, expr.right, parameters, builtin);
         break;
       case ExpressionType.Unary:
-        this.checkExpression(expr.operand, parameters, builtin);
+        this.checkExpression(parent, expr.operand, parameters, builtin);
         break;
       case ExpressionType.Error:
         this.pushError(SemanticErrorType.Error, null, expr);
@@ -363,6 +367,7 @@ class SemanticErrorAnalyzer {
   }
 
   private checkVariableExpression(
+    parent: Statement,
     expr: Expression,
     parameters: string[],
     builtin: Keywords | undefined
@@ -385,6 +390,7 @@ class SemanticErrorAnalyzer {
         this.pushError(
           SemanticErrorType.VariableParameterNotDefined,
           [expr.name],
+          parent,
           expr
         );
       }
@@ -421,6 +427,7 @@ class SemanticErrorAnalyzer {
   }
 
   private checkFunctionCallExpression(
+    parent: Statement,
     expr: Expression,
     parameters: string[],
     builtin: Keywords | undefined
@@ -436,11 +443,12 @@ class SemanticErrorAnalyzer {
     }
 
     for (const param of expr.parameters) {
-      this.checkExpression(param, parameters, builtin);
+      this.checkExpression(parent, param, parameters, builtin);
     }
   }
 
   private checkBuiltinCallExpression(
+    parent: Statement,
     expr: Expression,
     parameters: string[],
     builtin: Keywords | undefined
@@ -469,7 +477,7 @@ class SemanticErrorAnalyzer {
       return;
     }
 
-    this.checkExpression(expr.parameters[0], parameters, builtin);
+    this.checkExpression(parent, expr.parameters[0], parameters, builtin);
   }
 
   private checkNumberExpression(

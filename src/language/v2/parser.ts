@@ -112,6 +112,18 @@ type Expression = (
   range: { start: Position; end: Position };
 };
 
+const isStatement = (obj: Statement | Expression): obj is Statement => {
+  return (
+    obj.type === StatementType.Variable ||
+    obj.type === StatementType.Function ||
+    obj.type === StatementType.FunctionTable ||
+    obj.type === StatementType.BuiltinCall ||
+    obj.type === StatementType.Comment ||
+    obj.type === StatementType.Error
+  );
+};
+const isExpression = (obj: Statement | Expression): obj is Expression => !isStatement(obj);
+
 class Parser {
   private index: number = 0;
   private current: Token;
@@ -499,4 +511,7 @@ export {
   StatementType,
   ExpressionType,
   FunctionTableBody,
+
+  isStatement,
+  isExpression,
 };
