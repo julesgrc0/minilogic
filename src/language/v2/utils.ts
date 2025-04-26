@@ -1,3 +1,4 @@
+import { BinaryNumber, Position } from "./lexer";
 
 // CODE FROM: https://github.com/gustf/js-levenshtein/tree/master
 const levenshteinDistance = (a: string, b: string): number => {
@@ -99,4 +100,18 @@ const levenshteinDistance = (a: string, b: string): number => {
   return dd as number;
 };
 
-export { levenshteinDistance };
+const getCombinations = (n: number): BinaryNumber[][] => {
+  const result: BinaryNumber[][] = [];
+  for (let i = 0; i < 1 << n; i++) {
+    const row: BinaryNumber[] = [];
+    for (let j = n - 1; j >= 0; j--) {
+      row.push(((i >> j) & 1) as BinaryNumber);
+    }
+    result.push(row);
+  }
+  return result;
+};
+
+const POSITION_NOT_SET: Position = { line: -1, column: -1, offset: -1 };
+
+export { levenshteinDistance, getCombinations, POSITION_NOT_SET };

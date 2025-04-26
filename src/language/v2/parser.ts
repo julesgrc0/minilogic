@@ -63,6 +63,7 @@ type Statement = (
     }
   | {
       type: StatementType.Error;
+      token: Token;
       message: string;
     }
 ) & {
@@ -106,6 +107,7 @@ type Expression = (
     }
   | {
       type: ExpressionType.Error;
+      token: Token;
       message: string;
     }
 ) & {
@@ -152,6 +154,7 @@ class Parser {
         stmt = {
           type: StatementType.Error,
           message: `Unexpected token: ${this.current.type}`,
+          token: this.current,
           range: {
             start: this.current.start,
             end: this.current.end,
@@ -221,6 +224,7 @@ class Parser {
         return {
           type: StatementType.Error,
           message: `Unexpected token when parsing statement: ${token.type}`,
+          token,
           range: {
             start: token.start,
             end: token.end,
@@ -465,6 +469,7 @@ class Parser {
         this.next();
         return {
           type: ExpressionType.Error,
+          token,
           message: `Unexpected token when parsing expression: ${token.type}`,
           range: {
             start: token.start,

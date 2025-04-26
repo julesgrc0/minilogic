@@ -1,13 +1,19 @@
-import { CodeFix } from "../lexer";
+import { Format } from "../format";
+import { CodeFix, Keywords } from "../lexer";
 import {
   Expression,
   ExpressionType,
+  FunctionTableBody,
   isExpression,
   isStatement,
   Statement,
   StatementType,
 } from "../parser";
-import { levenshteinDistance } from "../utils";
+import {
+  getCombinations,
+  levenshteinDistance,
+  POSITION_NOT_SET,
+} from "../utils";
 import { SemanticError, SemanticErrorType } from "./error_analyser";
 
 class SemanticErrorSolver {
@@ -49,11 +55,9 @@ class SemanticErrorSolver {
           this.removeDuplicateIndexes(error);
           break;
         case SemanticErrorType.BuiltinInvalidUsage:
-          // TODO
-          break;
         case SemanticErrorType.BuiltinInvalidParameterType:
         case SemanticErrorType.BuiltinInvalidParameterLength:
-          this.solveInvalidBuiltinParameter(error);
+          // TODO: Add builtin fixes
           break;
         case SemanticErrorType.StringInExpression:
           this.removeStringInExpression(error);
@@ -248,17 +252,125 @@ class SemanticErrorSolver {
         value: `${stmt.name}(${new_parameters.join(", ")}) = `,
       });
       return;
-    }
-    else if(stmt.type === StatementType.FunctionTable) {
+    } else if (stmt.type === StatementType.FunctionTable) {
       const new_subparameters = [...new Set(stmt.subparameters)];
       const new_parameters = [...new Set(stmt.parameters)];
       this.fixes.push({
         start: stmt.range.start,
-        end: stmt.table.length > 0 ? stmt.table[0].value.range.start : stmt.range.end,
+        end:
+          stmt.table.length > 0
+            ? stmt.table[0].value.range.start
+            : stmt.range.end,
         message: `Remove duplicate parameters from function ${stmt.name}`,
-        value: `${stmt.name}(${new_parameters}${new_subparameters.length > 0 ? "|" + new_subparameters.join(", ") : ""}) = [`,
+        value: `${stmt.name}(${new_parameters}${
+          new_subparameters.length > 0 ? "|" + new_subparameters.join(", ") : ""
+        }) = [`,
       });
     }
   }
 
-}
+  private createFunctionTable(error: SemanticError) {
+    if (
+      error.type !== SemanticErrorType.FunctionTableInvalidLength ||
+      isExpression(error.object)
+    )
+      return;
+
+    const stmt = error.object as Statement;
+    if (stmt.type !== StatementType.FunctionTable) return;
+
+    const cmbs = getCombinations(stmt.parameters.length);
+    const new_table: FunctionTableBody = cmbs.map((cmb) => {
+      const value = stmt.table
+        .map((row) => {
+          if (row.index.join("") === cmb.join("")) {
+            return row.value;
+          }
+        })
+        .filter((v) => v !== undefined);
+
+      return {
+        index: cmb,
+        value:
+          value.length > 0
+            ? value[0]
+            : {
+                type: ExpressionType.Number,
+                value: 0,
+                range: {
+                  start: POSITION_NOT_SET,
+                  end: POSITION_NOT_SET,
+                },
+              },
+      };
+    });
+
+    this.fixes.push({
+      start: stmt.range.start,
+      end: stmt.range.end,
+      message: `Create function table for ${stmt.name}`,
+      value: Format.formatStatement({
+        ...stmt,
+        table: new_table,
+      }),
+    });
+  }
+
+  private removeDuplicateIndexes(error: SemanticError) {
+    if (
+      error.type !== SemanticErrorType.FunctionTableDuplicateIndexes ||
+      isExpression(error.object)
+    )
+      return;
+
+    const stmt = error.object as Statement;
+    if (stmt.type !== StatementType.FunctionTable) return;
+
+    const new_table = stmt.table.filter((row, index, self) => {
+      return (
+        index ===
+        self.findIndex((r) => r.index.join("") === row.index.join(""))
+      );
+    });
+
+    this.fixes.push({
+      start: stmt.range.start,
+      end: stmt.range.end,
+      message: `Remove duplicate indexes from function table ${stmt.name}`,
+      value: Format.formatStatement({
+        ...stmt,
+        table: new_table,
+      }),
+    });
+  }
+
+  private removeStringInExpression(error: SemanticError) {
+    if (error.type !== SemanticErrorType.StringInExpression) return;
+
+    const expr = error.object as Expression;
+    if (expr.type !== ExpressionType.String) return;
+
+    this.fixes.push({
+      start: expr.range.start,
+      end: expr.range.end,
+      message: `Remove string ${expr.value} from expression`,
+      value: null,
+    });
+  }
+
+  private removeError(error: SemanticError) {
+    if (error.type !== SemanticErrorType.Error) return;
+
+    const stmt = error.object as Statement;
+    if (stmt.type !== StatementType.Error) return;
+
+    this.fixes.push({
+      start: stmt.range.start,
+      end: stmt.range.end,
+      message: `Remove token ${stmt.token.value}`,
+      value: null,
+    });
+  }
+} 
+
+export { SemanticErrorSolver };
