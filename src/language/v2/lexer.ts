@@ -1,17 +1,18 @@
-import { parse } from "path";
-
-type CodeFix = {
-  start: Position;
-  end: Position;
-  message: string;
-  value: string | null;
-}
-
 type Position = {
   line: number;
   column: number;
   offset: number;
 };
+
+type Range = {
+  start: Position;
+  end: Position;
+};
+
+type CodeFix = {
+  message: string;
+  value: string | null;
+} & Range;
 
 enum TokenType {
   Identifier = "Identifier",
@@ -310,4 +311,14 @@ class Lexer {
   }
 }
 
-export { Lexer, TokenType, Token, Operators, Keywords, BinaryNumber, Position, CodeFix };
+export {
+  Lexer,
+  TokenType,
+  Token,
+  Operators,
+  Keywords,
+  BinaryNumber,
+  Position,
+  Range,
+  CodeFix,
+};

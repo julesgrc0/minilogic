@@ -1,3 +1,4 @@
+import { start } from "repl";
 import { BinaryNumber, Position } from "./lexer";
 
 // CODE FROM: https://github.com/gustf/js-levenshtein/tree/master
@@ -113,5 +114,6 @@ const getCombinations = (n: number): BinaryNumber[][] => {
 };
 
 const POSITION_NOT_SET: Position = { line: -1, column: -1, offset: -1 };
+const RANGE_NOT_SET = { start: POSITION_NOT_SET, end: POSITION_NOT_SET };
 
-export { levenshteinDistance, getCombinations, POSITION_NOT_SET };
+export { levenshteinDistance, getCombinations, POSITION_NOT_SET, RANGE_NOT_SET };

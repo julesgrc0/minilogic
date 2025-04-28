@@ -13,6 +13,7 @@ import {
   getCombinations,
   levenshteinDistance,
   POSITION_NOT_SET,
+  RANGE_NOT_SET,
 } from "../utils";
 import { SemanticError, SemanticErrorType } from "./error_analyser";
 
@@ -297,10 +298,7 @@ class SemanticErrorSolver {
             : {
                 type: ExpressionType.Number,
                 value: 0,
-                range: {
-                  start: POSITION_NOT_SET,
-                  end: POSITION_NOT_SET,
-                },
+                range: RANGE_NOT_SET,
               },
       };
     });

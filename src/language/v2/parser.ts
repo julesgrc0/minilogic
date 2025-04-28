@@ -6,6 +6,7 @@ import {
   TokenType,
   Operators,
   Position,
+  Range,
 } from "./lexer";
 
 enum StatementType {
@@ -67,7 +68,7 @@ type Statement = (
       message: string;
     }
 ) & {
-  range: { start: Position; end: Position };
+  range: Range;
 };
 
 type Expression = (
@@ -111,7 +112,7 @@ type Expression = (
       message: string;
     }
 ) & {
-  range: { start: Position; end: Position };
+  range: Range;
 };
 
 const isStatement = (obj: Statement | Expression): obj is Statement => {
@@ -124,7 +125,8 @@ const isStatement = (obj: Statement | Expression): obj is Statement => {
     obj.type === StatementType.Error
   );
 };
-const isExpression = (obj: Statement | Expression): obj is Expression => !isStatement(obj);
+const isExpression = (obj: Statement | Expression): obj is Expression =>
+  !isStatement(obj);
 
 class Parser {
   private index: number = 0;
@@ -516,7 +518,6 @@ export {
   StatementType,
   ExpressionType,
   FunctionTableBody,
-
   isStatement,
   isExpression,
 };
