@@ -1,84 +1,93 @@
-import { Lexer, Operators, Token, TokenType } from "./lexer";
+import {
+  Lexer,
+  BinaryNumber,
+  Keywords,
+  Token,
+  TokenType,
+  Operators,
+  Position,
+  Range,
+} from "./lexer";
 
 enum StatementType {
-  Assignment = "Assignment",
-  FunctionDefinition = "FunctionDefinition",
+  Variable = "Variable",
+  Function = "Function",
+  FunctionTable = "FunctionTable",
   BuiltinCall = "BuiltinCall",
   Comment = "Comment",
+  Error = "Error",
 }
 
 enum ExpressionType {
-  BinaryExpression = "BinaryExpression",
-  UnaryExpression = "UnaryExpression",
-  Variable = "Variable",
   Number = "Number",
+  String = "String",
+
+  Binary = "Binary",
+  Unary = "Unary",
+
+  Variable = "Variable",
   FunctionCall = "FunctionCall",
   BuiltinCall = "BuiltinCall",
-  TableDefinition = "TableDefinition",
+
+  Error = "Error",
 }
 
-enum BuiltinType {
-  Print = "PRINT",
-  Show = "SHOW",
-  Table = "TABLE",
-  Graph = "GRAPH",
-  Export = "EXPORT",
-  ToNand = "TO_NAND",
-  ToNor = "TO_NOR",
-  Simplify = "SIMPLIFY",
-}
+type FunctionTableBody = { index: BinaryNumber[]; value: Expression }[];
 
-const builtinFunctions: BuiltinType[] = [
-  BuiltinType.ToNand,
-  BuiltinType.ToNor,
-  BuiltinType.Simplify,
-];
-
-type BinaryNumber = 0 | 1;
-type BinaryVarNumber = BinaryNumber | "X";
-type TableRow = {
-  input: { value: BinaryNumber; id: number }[][];
-  output: BinaryVarNumber[];
-};
-
-type ErrorCase = {
-  id: number;
-  type: "Error";
-  message: string;
-};
-
-type StatementCase =
+type Statement = (
   | {
-      type: StatementType.Assignment;
-      variable: string;
-      expression: Expression;
+      type: StatementType.Variable;
+      name: string;
+      value: Expression;
     }
   | {
-      type: StatementType.FunctionDefinition;
+      type: StatementType.Function;
       name: string;
       parameters: string[];
-      expression: Expression;
+      body: Expression;
+    }
+  | {
+      type: StatementType.FunctionTable;
+      name: string;
+      parameters: string[];
+      subparameters: string[];
+      table: FunctionTableBody;
     }
   | {
       type: StatementType.BuiltinCall;
-      name: BuiltinType;
-      args: Expression[];
+      name: Keywords;
+      parameters: Expression[];
     }
   | {
       type: StatementType.Comment;
-      comment: string;
+      value: string;
     }
-  | ErrorCase;
-
-type ExpressionCase =
   | {
-      type: ExpressionType.BinaryExpression;
+      type: StatementType.Error;
+      token: Token;
+      message: string;
+    }
+) & {
+  range: Range;
+};
+
+type Expression = (
+  | {
+      type: ExpressionType.Number;
+      value: BinaryNumber;
+    }
+  | {
+      type: ExpressionType.String;
+      value: string;
+    }
+  | {
+      type: ExpressionType.Binary;
       left: Expression;
       operator: Operators;
       right: Expression;
     }
   | {
-      type: ExpressionType.UnaryExpression;
+      type: ExpressionType.Unary;
       operator: Operators;
       operand: Expression;
     }
@@ -88,384 +97,427 @@ type ExpressionCase =
       reference: boolean;
     }
   | {
-      type: ExpressionType.Number;
-      value: BinaryNumber;
-    }
-  | {
       type: ExpressionType.FunctionCall;
       name: string;
-      args: Expression[];
-    }
-  | {
-      type: ExpressionType.TableDefinition;
-      rows: TableRow[];
+      parameters: Expression[];
     }
   | {
       type: ExpressionType.BuiltinCall;
-      name: BuiltinType;
-      operand: Expression;
+      name: Keywords;
+      parameters: Expression[];
     }
-  | ErrorCase;
+  | {
+      type: ExpressionType.Error;
+      token: Token;
+      message: string;
+    }
+) & {
+  range: Range;
+};
 
-type Statement = {
-  id: number;
-} & StatementCase;
-
-type Expression = {
-  id: number;
-} & ExpressionCase;
-
-class ParserError extends Error {
-  public constructor(public position: number, message: string) {
-    super(message);
-    this.name = "ParserError";
-  }
-}
+const isStatement = (obj: Statement | Expression): obj is Statement => {
+  return (
+    obj.type === StatementType.Variable ||
+    obj.type === StatementType.Function ||
+    obj.type === StatementType.FunctionTable ||
+    obj.type === StatementType.BuiltinCall ||
+    obj.type === StatementType.Comment ||
+    obj.type === StatementType.Error
+  );
+};
+const isExpression = (obj: Statement | Expression): obj is Expression =>
+  !isStatement(obj);
 
 class Parser {
-  private currentToken: Token;
+  private index: number = 0;
+  private current: Token;
 
-  constructor(private lexer: Lexer) {
-    this.currentToken = this.lexer.getNextToken(true);
-  }
-
-  private eat(tokenType: TokenType): Token {
-    if (this.currentToken.type === tokenType) {
-      const prevToken = this.currentToken;
-      this.currentToken = this.lexer.getNextToken();
-      return prevToken;
-    } else {
-      throw new ParserError(
-        this.currentToken.pos,
-        `Unexpected token ${
-          this.currentToken.value
-        }, expected ${tokenType.toLowerCase()}`
-      );
+  public constructor(private tokens: Token[]) {
+    if (tokens.length === 0) {
+      this.current = {
+        type: TokenType.EOF,
+        value: null,
+        start: { line: 0, column: 0, offset: 0 },
+        end: { line: 0, column: 0, offset: 0 },
+      };
+      return;
     }
+
+    this.current = this.tokens[this.index];
   }
 
-  public parseProgram(): Statement[] {
+  public parse(): Statement[] {
     const statements: Statement[] = [];
-
-    let hasError = false;
-    while (this.currentToken.type !== TokenType.EOF) {
+    while (this.current.type !== TokenType.EOF) {
       let stmt: Statement;
       try {
-        if (hasError) {
-          this.currentToken = this.lexer.getNextToken();
-          hasError = false;
-        }
-
         stmt = this.parseStatement();
-      } catch (error) {
-        const perror = error as ParserError;
-        stmt = this.parseError(perror.position, perror.message);
-        hasError = true;
+      } catch {
+        stmt = {
+          type: StatementType.Error,
+          message: `Unexpected token: ${this.current.type}`,
+          token: this.current,
+          range: {
+            start: this.current.start,
+            end: this.current.end,
+          },
+        };
+        this.next();
       }
       statements.push(stmt);
     }
-
     return statements;
   }
 
-  private parseStatement(): Statement {
-    if (this.currentToken.type === TokenType.Keyword) {
-      return this.parseBuiltinCall();
+  private eat(type: TokenType): Token {
+    if (
+      this.index < this.tokens.length &&
+      this.tokens[this.index].type === type
+    ) {
+      return this.next();
     }
-
-    if (this.currentToken.type === TokenType.Comment) {
-      const token = this.eat(TokenType.Comment);
-      return {
-        id: token.pos,
-        type: StatementType.Comment,
-        comment: token.value,
-      };
-    }
-
-    const token = this.currentToken;
-    this.eat(TokenType.Identifier);
-
-    if (this.currentToken.type === TokenType.Equals) {
-      this.eat(TokenType.Equals);
-
-      const expr = this.parseExpression();
-      return {
-        id: token.pos,
-        type: StatementType.Assignment,
-        variable: token.value,
-        expression: expr,
-      };
-    } else if (this.currentToken.type === TokenType.LParen) {
-      this.eat(TokenType.LParen);
-      const params: string[] = [];
-
-      if ((this.currentToken.type as TokenType) === TokenType.Identifier) {
-        params.push(this.currentToken.value);
-        this.eat(TokenType.Identifier);
-
-        while ((this.currentToken.type as TokenType) === TokenType.Comma) {
-          this.eat(TokenType.Comma);
-          params.push(this.currentToken.value);
-          this.eat(TokenType.Identifier);
-        }
-      }
-      this.eat(TokenType.RParen);
-      this.eat(TokenType.Equals);
-
-      const expr =
-        (this.currentToken.type as TokenType) === TokenType.LBracket
-          ? this.parseTableDefinition()
-          : this.parseExpression();
-      return {
-        id: token.pos,
-        type: StatementType.FunctionDefinition,
-        name: token.value,
-        parameters: params,
-        expression: expr,
-      };
-    }
-
-    return this.parseError(token.pos, `Unexpected token ${token.value}`);
+    throw new Error("EAT ERROR");
   }
 
-  private parseTableDefinition(): Expression {
-    const token = this.currentToken;
-    this.eat(TokenType.LBracket);
-    const rows: TableRow[] = [];
-
-    while (this.currentToken.type !== TokenType.RBracket) {
-      const input: { value: BinaryNumber; id: number }[][] = [];
-      const output: BinaryVarNumber[] = [];
-
-      let currentInput: { value: BinaryNumber; id: number }[] = [];
-      while (this.currentToken.type === TokenType.Number) {
-        const bits = this.currentToken.value.split("");
-        for (const bit of bits) {
-          if (bit !== "0" && bit !== "1") {
-            return this.parseError(
-              this.currentToken.pos,
-              `Invalid binary number ${this.currentToken.value}`
-            );
-          }
-          currentInput.push({
-            value: parseInt(bit) as BinaryNumber,
-            id: this.currentToken.pos,
-          });
-        }
-        this.eat(TokenType.Number);
-      }
-      input.push(currentInput);
-
-      this.eat(TokenType.Comma);
-
-      if ((this.currentToken.type as TokenType) === TokenType.Number) {
-        const bit = this.currentToken.value;
-        if (bit !== "0" && bit !== "1" && bit !== "X") {
-          return this.parseError(
-            this.currentToken.pos,
-            `Invalid binary number ${this.currentToken.value}`
-          );
-        }
-        output.push((bit === "X" ? "X" : parseInt(bit)) as BinaryVarNumber);
-        this.eat(TokenType.Number);
-      } else if (
-        this.currentToken.type === TokenType.Identifier &&
-        this.currentToken.value === "X"
-      ) {
-        output.push("X");
-        this.eat(TokenType.Identifier);
-      } else {
-        return this.parseError(
-          this.currentToken.pos,
-          `Unexpected token ${this.currentToken.value} in truth table`
-        );
-      }
-
-      rows.push({ input, output });
-
-      if ((this.currentToken.type as TokenType) === TokenType.Comma) {
-        this.eat(TokenType.Comma);
-      }
+  private next(): Token {
+    if (this.index + 1 < this.tokens.length) {
+      this.index++;
+      this.current = this.tokens[this.index];
+      return this.current;
     }
 
-    this.eat(TokenType.RBracket);
-    return { id: token.pos, type: ExpressionType.TableDefinition, rows };
+    this.current = {
+      type: TokenType.EOF,
+      value: null,
+      start: { line: 0, column: 0, offset: 0 },
+      end: { line: 0, column: 0, offset: 0 },
+    };
+    return this.current;
+  }
+
+  private parseStatement(): Statement {
+    switch (this.current.type) {
+      case TokenType.Keyword:
+        return this.parseBuiltinCall();
+      case TokenType.Comment:
+        const cmt = this.current;
+        this.eat(TokenType.Comment);
+        return {
+          type: StatementType.Comment,
+          value: cmt.value,
+          range: {
+            start: cmt.start,
+            end: cmt.end,
+          },
+        };
+      case TokenType.Identifier: {
+        const name = this.current;
+
+        this.current = this.eat(TokenType.Identifier);
+        if (this.current.type === TokenType.Equal) {
+          return this.parseVariable(name);
+        }
+
+        return this.parseFunction(name);
+      }
+      default: {
+        const token = this.current;
+        this.next();
+        return {
+          type: StatementType.Error,
+          message: `Unexpected token when parsing statement: ${token.type}`,
+          token,
+          range: {
+            start: token.start,
+            end: token.end,
+          },
+        };
+      }
+    }
   }
 
   private parseBuiltinCall(): Statement {
-    const token = this.eat(TokenType.Keyword);
-    this.eat(TokenType.LParen);
-    const args: Expression[] = [];
+    const start = this.current.start;
 
-    if (this.currentToken.type !== TokenType.RParen) {
-      args.push(this.parseExpression());
-      while (this.currentToken.type === TokenType.Comma) {
+    const name = this.current.value as Keywords;
+    this.eat(TokenType.Keyword);
+    this.eat(TokenType.LParen);
+
+    const parameters: Expression[] = [];
+    while (this.current.type !== TokenType.RParen) {
+      parameters.push(this.parseExpression());
+      if (this.current.type === TokenType.Comma) {
         this.eat(TokenType.Comma);
-        args.push(this.parseExpression());
       }
     }
     this.eat(TokenType.RParen);
+
     return {
-      id: token.pos,
       type: StatementType.BuiltinCall,
-      name: token.value as BuiltinType,
-      args,
+      name,
+      parameters,
+      range: {
+        start,
+        end: this.current.end,
+      },
     };
+  }
+
+  private parseVariable(name: Token): Statement {
+    this.eat(TokenType.Equal);
+    return {
+      type: StatementType.Variable,
+      name: name.value as string,
+      value: this.parseExpression(),
+      range: {
+        start: name.start,
+        end: this.current.end,
+      },
+    };
+  }
+
+  private parseFunction(name: Token): Statement {
+    this.eat(TokenType.LParen);
+
+    const parameters: string[] = [];
+    const subparameters: string[] = [];
+
+    let sub = false;
+
+    while (this.current.type !== TokenType.RParen) {
+      if (this.current.type === TokenType.Identifier) {
+        (sub ? subparameters : parameters).push(this.current.value as string);
+      }
+      this.eat(TokenType.Identifier);
+
+      if (this.current.type === TokenType.Bar) {
+        sub = true;
+        this.eat(TokenType.Bar);
+        continue;
+      }
+
+      if (this.current.type === TokenType.Comma) {
+        this.eat(TokenType.Comma);
+      }
+    }
+    this.eat(TokenType.RParen);
+    this.current = this.eat(TokenType.Equal);
+
+    if (subparameters.length > 0 || this.current.type === TokenType.LBracket) {
+      return {
+        type: StatementType.FunctionTable,
+        name: name.value as string,
+        parameters,
+        subparameters,
+        table: this.parseFunctionTable(),
+        range: {
+          start: name.start,
+          end: this.current.end,
+        },
+      };
+    }
+
+    return {
+      type: StatementType.Function,
+      name: name.value as string,
+      parameters,
+      body: this.parseExpression(),
+      range: {
+        start: name.start,
+        end: this.current.end,
+      },
+    };
+  }
+
+  private parseFunctionTable(): FunctionTableBody {
+    this.eat(TokenType.LBracket);
+    const table: FunctionTableBody = [];
+    while (this.current.type !== TokenType.RBracket) {
+      let index: BinaryNumber[] = [];
+
+      if (this.current.type === TokenType.BinaryNumberList) {
+        index = this.current.value as BinaryNumber[];
+        this.eat(TokenType.BinaryNumberList);
+      } else {
+        index = [this.current.value as BinaryNumber];
+        this.eat(TokenType.BinaryNumber);
+      }
+
+      this.eat(TokenType.Comma);
+      const value = this.parseExpression();
+      table.push({ index, value });
+    }
+
+    this.eat(TokenType.RBracket);
+    return table;
+  }
+
+  private getOperatorPrecedence(operator: Operators): number {
+    if (operator === Operators.Not) return 3;
+    if (operator === Operators.And || operator === Operators.Nand) return 2;
+    return 1;
   }
 
   private parseExpression(precedence: number = 0): Expression {
     let left = this.parseUnaryExpression();
 
     while (
-      this.currentToken.type === TokenType.Operator &&
-      this.getPrecedence(this.currentToken.value as Operators) >= precedence
+      this.current.type === TokenType.Operator &&
+      this.getOperatorPrecedence(this.current.value as Operators) >= precedence
     ) {
-      const token = this.currentToken;
-      const opPrecedence = this.getPrecedence(token.value as Operators);
+      const operator = this.current.value as Operators;
+      const opPrecedence = this.getOperatorPrecedence(operator);
+
       this.eat(TokenType.Operator);
       const right = this.parseExpression(opPrecedence + 1);
 
       left = {
-        id: token.pos,
-        type: ExpressionType.BinaryExpression,
+        type: ExpressionType.Binary,
         left,
-        operator: token.value as Operators,
+        operator,
         right,
+        range: {
+          start: left.range.start,
+          end: right.range.end,
+        },
       };
     }
 
     return left;
   }
 
-  private getPrecedence(operator: Operators): number {
-    if (operator === Operators.Not) return 3;
-    if (operator === Operators.And || operator === Operators.Nand) return 2;
-    return 1;
-  }
-
   private parseUnaryExpression(): Expression {
     if (
-      this.currentToken.type === TokenType.Operator &&
-      this.currentToken.value === Operators.Not
+      this.current.type === TokenType.Operator &&
+      this.current.value === Operators.Not
     ) {
-      const token = this.currentToken;
       this.eat(TokenType.Operator);
       const operand = this.parseUnaryExpression();
 
       return {
-        id: token.pos,
-        type: ExpressionType.UnaryExpression,
-        operator: token.value as Operators,
+        type: ExpressionType.Unary,
+        operator: Operators.Not,
         operand,
+        range: {
+          start: this.current.start,
+          end: operand.range.end,
+        },
       };
     }
+
     return this.parsePrimary();
   }
 
   private parsePrimary(): Expression {
-    const token = this.currentToken;
-
-    if (token.type === TokenType.Number) {
-      this.eat(TokenType.Number);
-      if (
-        token.value.length !== 1 ||
-        (token.value !== "0" && token.value !== "1")
-      ) {
-        return this.parseError(
-          token.pos,
-          `Invalid binary number ${token.value}`
-        );
-      }
-      return {
-        id: token.pos,
-        type: ExpressionType.Number,
-        value: parseInt(token.value) as BinaryNumber,
-      };
-    }
-
-    if (token.type === TokenType.Identifier) {
-      this.eat(TokenType.Identifier);
-
-      if (this.currentToken.type === TokenType.LParen) {
-        this.eat(TokenType.LParen);
-        const args: Expression[] = [];
-
-        if ((this.currentToken.type as TokenType) !== TokenType.RParen) {
-          args.push(this.parseExpression());
-          while ((this.currentToken.type as TokenType) === TokenType.Comma) {
-            this.eat(TokenType.Comma);
-            args.push(this.parseExpression());
-          }
+    switch (this.current.type) {
+      case TokenType.Identifier: {
+        const name = this.current;
+        this.current = this.eat(TokenType.Identifier);
+        if (this.current.type === TokenType.LParen) {
+          return this.parseFunctionCallExpression(name);
         }
-        this.eat(TokenType.RParen);
+
+        let reference = false;
+        if (this.current.type === TokenType.Star) {
+          reference = true;
+          this.eat(TokenType.Star);
+        }
+
         return {
-          id: token.pos,
-          type: ExpressionType.FunctionCall,
-          name: token.value,
-          args,
+          type: ExpressionType.Variable,
+          name: name.value,
+          reference,
+          range: {
+            start: name.start,
+            end: this.current.end,
+          },
         };
       }
-
-      let reference = false;
-      if (this.currentToken.type === TokenType.Star) {
-        reference = true;
-        this.eat(TokenType.Star);
+      case TokenType.Keyword: {
+        const name = this.current;
+        this.eat(TokenType.Keyword);
+        return this.parseFunctionCallExpression(name, true);
       }
-
-      return {
-        id: token.pos,
-        type: ExpressionType.Variable,
-        name: token.value,
-        reference,
-      };
+      case TokenType.LParen: {
+        this.eat(TokenType.LParen);
+        const expr = this.parseExpression();
+        this.eat(TokenType.RParen);
+        return expr;
+      }
+      case TokenType.String:
+        const str = this.current;
+        this.eat(TokenType.String);
+        return {
+          type: ExpressionType.String,
+          value: str.value,
+          range: {
+            start: str.start,
+            end: str.end,
+          },
+        };
+      case TokenType.BinaryNumber:
+        const num = this.current;
+        this.eat(TokenType.BinaryNumber);
+        return {
+          type: ExpressionType.Number,
+          value: num.value as BinaryNumber,
+          range: {
+            start: num.start,
+            end: num.end,
+          },
+        };
+      default: {
+        const token = this.current;
+        this.next();
+        return {
+          type: ExpressionType.Error,
+          token,
+          message: `Unexpected token when parsing expression: ${token.type}`,
+          range: {
+            start: token.start,
+            end: token.end,
+          },
+        };
+      }
     }
-
-    if (token.type === TokenType.LParen) {
-      this.eat(TokenType.LParen);
-      const expr = this.parseExpression();
-      this.eat(TokenType.RParen);
-      return expr;
-    }
-
-    if (token.type === TokenType.Keyword) {
-      this.eat(TokenType.Keyword);
-      this.eat(TokenType.LParen);
-      const operand = this.parseExpression();
-      this.eat(TokenType.RParen);
-
-      return {
-        id: token.pos,
-        type: ExpressionType.BuiltinCall,
-        name: token.value as BuiltinType,
-        operand,
-      };
-    }
-
-    return this.parseError(
-      token.pos,
-      `Unexpected token ${token.value} in expression`
-    );
   }
 
-  private parseError(id: number, message: string): ErrorCase {
+  private parseFunctionCallExpression(
+    name: Token,
+    builtin: boolean = false
+  ): Expression {
+    const start = name.start;
+
+    this.eat(TokenType.LParen);
+    const parameters: Expression[] = [];
+
+    while (this.current.type !== TokenType.RParen) {
+      parameters.push(this.parseExpression());
+      if (this.current.type === TokenType.Comma) {
+        this.eat(TokenType.Comma);
+      }
+    }
+
+    this.eat(TokenType.RParen);
     return {
-      id,
-      type: "Error",
-      message,
+      type: builtin ? ExpressionType.BuiltinCall : ExpressionType.FunctionCall,
+      name: name.value as any,
+      parameters,
+      range: {
+        start,
+        end: this.current.end,
+      },
     };
   }
 }
 
 export {
   Parser,
-  ParserError,
-  BuiltinType,
-  StatementType,
   Statement,
-  ExpressionType,
   Expression,
-  TableRow,
-  BinaryNumber,
-  BinaryVarNumber,
-  builtinFunctions,
+  StatementType,
+  ExpressionType,
+  FunctionTableBody,
+  isStatement,
+  isExpression,
 };

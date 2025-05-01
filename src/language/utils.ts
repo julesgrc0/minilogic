@@ -1,199 +1,105 @@
-import { Formatter } from "./formatter";
-import { Operators } from "./lexer";
-import {
-  BinaryNumber,
-  Expression,
-  ExpressionType,
-  Statement,
-  StatementType,
-} from "./parser";
+import * as vscode from "vscode";
+import { BinaryNumber, Position } from "./lexer";
 
-enum QuickFixType {
-  CHANGE,
-  REMOVE,
-  NONE
-}
+// CODE FROM: https://github.com/gustf/js-levenshtein/tree/master
+const levenshteinDistance = (a: string, b: string): number => {
+  const _min = (d0: number, d1: number, d2: number, bx: number, ay: number) => {
+    return d0 < d1 || d2 < d1
+      ? d0 > d2
+        ? d2 + 1
+        : d0 + 1
+      : bx === ay
+      ? d1
+      : d1 + 1;
+  };
 
+  if (a === b) {
+    return 0;
+  }
 
-type QuickFixStatement = (
-  | {
-      type: QuickFixType.CHANGE;
-      line: string | { 
-        value: string;
-        at : number;
-      };
-    }
-  | {
-      type: QuickFixType.REMOVE;
-    } 
-  | {
-      type: QuickFixType.NONE;
-    }
-) & {
-  message: string;
-  fixId: number;
-};
+  if (a.length > b.length) {
+    let tmp = a;
+    a = b;
+    b = tmp;
+  }
 
-const convertTableDefinitionToExpression = (
-  stmt: Statement
-): Expression | null => {
-  if (
-    stmt.type != StatementType.FunctionDefinition ||
-    stmt.expression.type !== ExpressionType.TableDefinition
-  )
-    return null;
+  let la = a.length;
+  let lb = b.length;
 
-  const minterms: Expression[] = [];
+  while (la > 0 && a.charCodeAt(la - 1) === b.charCodeAt(lb - 1)) {
+    la--;
+    lb--;
+  }
 
-  for (const row of stmt.expression.rows) {
-    if (row.output[0] === 1) {
-      const terms: Expression[] = [];
+  let offset = 0;
 
-      for (let i = 0; i < row.input[0].length; i++) {
-        const bit = row.input[0][i].value;
-        const variable: Expression = {
-          type: ExpressionType.Variable,
-          name: stmt.parameters[i],
-          reference: false,
-          id: -1,
-        };
+  while (offset < la && a.charCodeAt(offset) === b.charCodeAt(offset)) {
+    offset++;
+  }
 
-        terms.push(
-          bit === 1
-            ? variable
-            : {
-                type: ExpressionType.UnaryExpression,
-                operator: Operators.Not,
-                operand: variable,
-                id: -1,
-              }
-        );
-      }
+  la -= offset;
+  lb -= offset;
 
-      const andExpr = terms.reduce((a, b) => ({
-        type: ExpressionType.BinaryExpression,
-        operator: Operators.And,
-        left: a,
-        right: b,
-        id: -1,
-      }));
+  if (la === 0 || lb < 3) {
+    return lb;
+  }
 
-      minterms.push(andExpr);
+  let x = 0;
+  let y;
+  let d0;
+  let d1;
+  let d2;
+  let d3;
+  let dd;
+  let dy;
+  let ay;
+  let bx0;
+  let bx1;
+  let bx2;
+  let bx3;
+
+  let vector = [];
+
+  for (y = 0; y < la; y++) {
+    vector.push(y + 1);
+    vector.push(a.charCodeAt(offset + y));
+  }
+
+  let len = vector.length - 1;
+
+  for (; x < lb - 3; ) {
+    bx0 = b.charCodeAt(offset + (d0 = x));
+    bx1 = b.charCodeAt(offset + (d1 = x + 1));
+    bx2 = b.charCodeAt(offset + (d2 = x + 2));
+    bx3 = b.charCodeAt(offset + (d3 = x + 3));
+    dd = x += 4;
+    for (y = 0; y < len; y += 2) {
+      dy = vector[y];
+      ay = vector[y + 1];
+      d0 = _min(dy, d0, d1, bx0, ay);
+      d1 = _min(d0, d1, d2, bx1, ay);
+      d2 = _min(d1, d2, d3, bx2, ay);
+      dd = _min(d2, d3, dd, bx3, ay);
+      vector[y] = dd;
+      d3 = d2;
+      d2 = d1;
+      d1 = d0;
+      d0 = dy;
     }
   }
 
-  if (minterms.length === 0) {
-    return { type: ExpressionType.Number, value: 0, id: -1 };
+  for (; x < lb; ) {
+    bx0 = b.charCodeAt(offset + (d0 = x));
+    dd = ++x;
+    for (y = 0; y < len; y += 2) {
+      dy = vector[y];
+      vector[y] = dd = _min(dy, d0, dd, bx0, vector[y + 1]);
+      d0 = dy;
+    }
   }
 
-  const finalExpr = minterms.reduce((a, b) => ({
-    type: ExpressionType.BinaryExpression,
-    operator: Operators.Or,
-    left: a,
-    right: b,
-    id: -1,
-  }));
-
-  return finalExpr;
+  return dd as number;
 };
-
-const convertExpressionToLogicGate = (
-  expr: Expression,
-  operator: Operators
-): Expression => {
-  const logicGate = (a: Expression, b: Expression): Expression => ({
-    type: ExpressionType.BinaryExpression,
-    operator,
-    left: a,
-    right: b,
-    id: -1,
-  });
-
-  switch (expr.type) {
-    case ExpressionType.Variable:
-    case ExpressionType.Number:
-    case ExpressionType.TableDefinition:
-    case "Error":
-      return expr;
-
-    case ExpressionType.UnaryExpression: {
-      const inner = convertExpressionToLogicGate(expr.operand, operator);
-      return logicGate(inner, inner);
-    }
-
-    case ExpressionType.BinaryExpression: {
-      const left = convertExpressionToLogicGate(expr.left, operator);
-      const right = convertExpressionToLogicGate(expr.right, operator);
-
-      switch (expr.operator) {
-        case Operators.And:
-          if (operator == Operators.Nand) {
-            const a = logicGate(left, right);
-            return logicGate(a, a);
-          } else {
-            return logicGate(logicGate(left, left), logicGate(right, right));
-          }
-
-        case Operators.Or:
-          if (operator == Operators.Nand) {
-            return logicGate(logicGate(left, left), logicGate(right, right));
-          } else {
-            const a = logicGate(left, right);
-            return logicGate(a, a);
-          }
-
-        case Operators.Xor: {
-          const a = logicGate(left, right);
-          const b = logicGate(left, a);
-          const c = logicGate(right, a);
-          return logicGate(b, c);
-        }
-
-        case Operators.Xnor: {
-          const a = logicGate(left, right);
-          const b = logicGate(left, a);
-          const c = logicGate(right, a);
-          const d = logicGate(b, c);
-          return logicGate(d, d);
-        }
-
-        case Operators.Nand:
-          if (operator == Operators.Nor) {
-            const a = logicGate(logicGate(left, left), logicGate(right, right));
-            return logicGate(a, a);
-          }
-          return expr;
-
-        case Operators.Nor:
-          if (operator == Operators.Nand) {
-            const a = logicGate(logicGate(left, left), logicGate(right, right));
-            return logicGate(a, a);
-          }
-          return expr;
-
-        case Operators.Not:
-          return expr;
-        default:
-          return expr;
-      }
-    }
-
-    case ExpressionType.FunctionCall:
-      return {
-        ...expr,
-        args: expr.args.map((arg) =>
-          convertExpressionToLogicGate(arg, operator)
-        ),
-      };
-
-    case ExpressionType.BuiltinCall:
-      return {
-        ...expr,
-        operand: convertExpressionToLogicGate(expr.operand, operator),
-      };
-  }
-};
-
 
 const getCombinations = (n: number): BinaryNumber[][] => {
   const result: BinaryNumber[][] = [];
@@ -207,25 +113,41 @@ const getCombinations = (n: number): BinaryNumber[][] => {
   return result;
 };
 
-const getStatmentToString = (stmt: Statement): string => {
-  return Formatter.formatStatement(stmt).replace(/\n/g, " ").trim();
+const POSITION_NOT_SET: Position = { line: -1, column: -1, offset: -1 };
+const RANGE_NOT_SET = { start: POSITION_NOT_SET, end: POSITION_NOT_SET };
+
+const minPosition = (a: Position, b: Position): Position =>
+  Math.min(a.offset, b.offset) === a.offset ? a : b;
+const maxPosition = (a: Position, b: Position): Position =>
+  Math.max(a.offset, b.offset) === a.offset ? a : b;
+
+const isPositionSet = (pos: Position): boolean =>
+  pos.line !== -1 && pos.column !== -1 && pos.offset !== -1;
+const isRangeSet = (range: { start: Position; end: Position }): boolean => {
+  return isPositionSet(range.start) && isPositionSet(range.end);
 };
 
-const getExpressionToString = (expr: Expression): string => {
-    return Formatter.formatExpression(expr).replace(/\n/g, " ").trim();
-}
-
-const isSameExpressions = (expr1: Expression, expr2: Expression): boolean => {
-  return JSON.stringify(expr1) === JSON.stringify(expr2);
+const convertPosition = (pos: Position): vscode.Position =>
+  new vscode.Position(pos.line, pos.column);
+const convertRange = (range: {
+  start: Position;
+  end: Position;
+}): vscode.Range => {
+  return new vscode.Range(
+    convertPosition(range.start),
+    convertPosition(range.end)
+  );
 };
 
 export {
-  QuickFixType, 
-  QuickFixStatement,
-  convertTableDefinitionToExpression,
-  convertExpressionToLogicGate,
+  levenshteinDistance,
   getCombinations,
-  getStatmentToString,
-  getExpressionToString,
-  isSameExpressions,
+  minPosition,
+  maxPosition,
+  isPositionSet,
+  convertPosition,
+  isRangeSet,
+  convertRange,
+  POSITION_NOT_SET,
+  RANGE_NOT_SET,
 };

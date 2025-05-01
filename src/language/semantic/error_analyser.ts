@@ -73,7 +73,7 @@ class SemanticErrorAnalyzer {
       "Invalid parameter type for builtin {0}, expected {1}",
     [SemanticErrorType.StringInExpression]:
       "Invalid usage of string {0} in expression",
-    [SemanticErrorType.Error]: "",
+    [SemanticErrorType.Error]: "{0}",
   };
 
   public constructor(private program: Statement[]) {}
@@ -94,12 +94,19 @@ class SemanticErrorAnalyzer {
           this.checkBuiltinCallStatement(stmt);
           break;
         case StatementType.Error:
-          this.pushError(SemanticErrorType.Error, null, stmt);
+          this.pushError(SemanticErrorType.Error, [stmt.message], stmt);
           break;
       }
     }
 
     return this.errors;
+  }
+
+  public getVariableNames(): string[] {
+    return Array.from(this.variables);
+  }
+  public getFunctionNames(): string[] {
+    return Array.from(this.functions);
   }
 
   private pushError(
@@ -361,7 +368,7 @@ class SemanticErrorAnalyzer {
         this.checkExpression(parent, expr.operand, parameters, builtin);
         break;
       case ExpressionType.Error:
-        this.pushError(SemanticErrorType.Error, null, expr);
+        this.pushError(SemanticErrorType.Error, [expr.message], expr);
         break;
     }
   }

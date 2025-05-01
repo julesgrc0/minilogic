@@ -1,455 +1,129 @@
-import { Lexer, Operators } from "./lexer";
+import { Format } from "./format";
+import { BinaryNumber, Keywords, Operators } from "./lexer";
+import { Expression, ExpressionType, Statement, StatementType } from "./parser";
 import {
-  Statement,
-  StatementType,
-  Expression,
-  ExpressionType,
-  BinaryNumber,
-  BuiltinType,
-} from "./parser";
-import { convertExpressionToLogicGate, convertTableDefinitionToExpression, getCombinations } from "./utils";
+  getCombinations,
+  maxPosition,
+  minPosition,
+  RANGE_NOT_SET,
+} from "./utils";
+
+type MLCVariable = Record<string, BinaryNumber>;
+type MLCFunction = Record<string, Statement & { type: StatementType.Function }>;
 
 class Interpreter {
-  private variables = new Map<string, BinaryNumber>();
-  private functions = new Map<string, Statement>();
+  private variables: MLCVariable = {};
+  private functions: MLCFunction = {};
   private output: string[] = [];
 
-  constructor(private ast: Statement[]) {}
+  public constructor(private program: Statement[]) {}
 
-  public run(): string[] {
-    for (const stmt of this.ast) {
-      this.execute(stmt);
+  public execute(): string[] {
+    for (const stmt of this.program) {
+      switch (stmt.type) {
+        case StatementType.Variable:
+          {
+            if (this.variables.hasOwnProperty(stmt.name)) {
+              throw new Error(`Variable ${stmt.name} already defined`);
+            }
+            this.variables[stmt.name] = this.evalExpression(stmt.value);
+          }
+          break;
+        case StatementType.Function:
+          {
+            if (this.functions.hasOwnProperty(stmt.name)) {
+              throw new Error(`Function ${stmt.name} already defined`);
+            }
+            this.functions[stmt.name] = stmt;
+          }
+          break;
+        case StatementType.FunctionTable: {
+          if (this.functions.hasOwnProperty(stmt.name)) {
+            throw new Error(`Function ${stmt.name} already defined`);
+          }
+          this.functions[stmt.name] = this.convertFunctionTableToFunction(stmt);
+        }
+        case StatementType.BuiltinCall:
+          this.evalBuiltinStatement(stmt);
+          break;
+      }
     }
     return this.output;
   }
 
-  public getVariables(): Map<string, BinaryNumber> {
-    return this.variables;
-  }
-
-  public getFunctions(): Map<string, Statement> {
-    return this.functions;
-  }
-
-  public callFunction(
-    name: string,
-    ...args: BinaryNumber[]
-  ): BinaryNumber | null {
-    const func = this.functions.get(name);
-
-    if (!func || func.type !== StatementType.FunctionDefinition) return null;
-    if (func.parameters.length !== args.length) return null;
-
-    const localVariables = new Map<string, BinaryNumber>();
-    for (let i = 0; i < func.parameters.length; i++) {
-      localVariables.set(func.parameters[i], args[i]);
-    }
-
-    return this.evalExpression(func.expression, localVariables);
-  }
-
-  public generateTruthTableFromFunction(funcName: string) {
-    const func = this.functions.get(funcName);
-    if (!func || func.type != StatementType.FunctionDefinition) return null;
-
-    return this.generateTruthTableFromExpression(
-      func.parameters,
-      func.expression
-    );
-  }
-
-  public generateTruthTableFromExpression(
-    variables: string[],
-    expr: Expression
-  ): {
-    inputs: string[];
-    rows: [number[], number][];
-  } | null {
-    const inputs = variables;
-    const rows: [number[], number][] = [];
-
-    const combinations = getCombinations(inputs.length);
-    for (const combination of combinations) {
-      const scope = new Map<string, BinaryNumber>();
-      inputs.forEach((input, i) => {
-        scope.set(input, combination[i]);
-      });
-      const result = this.evalExpression(expr, scope);
-      rows.push([combination, result]);
-    }
-
-    return { inputs, rows };
-  }
-
-  private execute(stmt: Statement): void {
-    switch (stmt.type) {
-      case StatementType.Assignment:
-        this.executeVariable(stmt);
-        break;
-      case StatementType.FunctionDefinition:
-        this.executeFunction(stmt);
-        break;
-      case StatementType.BuiltinCall:
-        this.executeBuiltin(stmt);
-        break;
-    }
-  }
-
-  private executeVariable(stmt: Statement): void {
-    if (stmt.type !== StatementType.Assignment) {
-      throw new Error(`Expected Assignment, got ${stmt.type}`);
-    }
-    if (this.variables.has(stmt.variable)) {
-      throw new Error(`Variable ${stmt.variable} already defined`);
-    }
-    if (this.functions.has(stmt.variable)) {
-      throw new Error(
-        `Ambiguous variable name ${stmt.variable}, already used as function`
-      );
-    }
-
-    this.variables.set(stmt.variable, this.evalExpression(stmt.expression));
-  }
-
-  private executeFunction(stmt: Statement): void {
-    if (stmt.type !== StatementType.FunctionDefinition) {
-      throw new Error(`Expected FunctionCall, got ${stmt.type}`);
-    }
-    if (this.functions.has(stmt.name)) {
-      throw new Error(`Function ${stmt.name} already defined`);
-    }
-    if (this.variables.has(stmt.name)) {
-      throw new Error(
-        `Ambiguous function name ${stmt.name}, already used as variable`
-      );
-    }
-
-    if (stmt.expression.type === ExpressionType.TableDefinition) {
-      this.functions.set(stmt.name, {
-        ...stmt,
-        expression: convertTableDefinitionToExpression(stmt)!,
-      });
-
-      return;
-    }
-
-    this.functions.set(stmt.name, stmt);
-  }
-
-  private executeBuiltin(stmt: Statement): void {
+  private evalBuiltinStatement(stmt: Statement): void {
     if (stmt.type !== StatementType.BuiltinCall) {
-      throw new Error(`Expected BuiltinCall, got ${stmt.type}`);
+      throw new Error(`Unexpected statement type: ${stmt.type}`);
     }
 
     switch (stmt.name) {
-      case BuiltinType.Print:
-        const argsPrint = stmt.args.map((arg) => this.evalExpression(arg));
-        this.output.push(argsPrint.join(", "));
-        break;
-
-      case BuiltinType.Show:
-        const argsShow = stmt.args.map((arg) =>
-          this.evalExpressionToString(arg, new Map(), true)
-        );
-        this.output.push(argsShow.join(", "));
-        break;
-      case BuiltinType.Graph:
-        // TODO: Implement graphing logic
-        break;
-      case BuiltinType.Table:
-        for (const arg of stmt.args) {
-          switch (arg.type) {
-            case ExpressionType.Variable:
-              if (this.functions.has(arg.name)) {
-                const func = this.functions.get(arg.name)!;
-                if (func.type !== StatementType.FunctionDefinition) continue;
-
-                if (func.expression.type == ExpressionType.Number) {
-                  this.output.push(
-                    "Error: Cannot convert function " +
-                      func.name +
-                      " to truth table because " +
-                      func.name +
-                      "(" +
-                      func.parameters.join(", ") +
-                      ") = " +
-                      func.expression.value +
-                      "\n"
-                  );
-                  continue;
+      case Keywords.Print:
+        {
+          this.output.push(
+            stmt.parameters
+              .map((param) => {
+                if (param.type == ExpressionType.String) {
+                  return param.value;
                 }
-
-                this.output.push(
-                  this.evalTableToString(func.expression, func.name)
-                );
-              } else {
-                this.output.push(
-                  "Error: Cannot convert " + arg.type + " to truth table\n"
-                );
-              }
-              break;
-
-            case ExpressionType.FunctionCall:
-            case ExpressionType.BuiltinCall:
-            case ExpressionType.UnaryExpression:
-            case ExpressionType.BinaryExpression:
-              this.output.push(this.evalTableToString(arg));
-              break;
-            case ExpressionType.Number:
-            case ExpressionType.TableDefinition:
-            case "Error":
-              this.output.push(
-                "Error: Cannot convert " + arg.type + " to table\n"
-              );
-              break;
-          }
+                return this.evalExpression(param).toString();
+              })
+              .join(" ")
+          );
         }
         break;
-      case BuiltinType.Export:
-        // TODO: Implement export logic
+      case Keywords.Show:
+        {
+          this.output.push(
+            stmt.parameters
+              .map((param) => {
+                return this.showExpression(param);
+              })
+              .join(" ")
+          );
+        }
+        break;
+      case Keywords.Table:
+        {
+          this.output.push(
+            stmt.parameters
+              .map((param) => this.showTruthTable(param))
+              .join("\n")
+          );
+        }
+        break;
+      case Keywords.Graph:
+      case Keywords.Export:
+      case Keywords.Import:
+        {
+          throw new Error(`${stmt.name} is not supported yet`);
+        }
         break;
       default:
-        throw new Error(`Invalid usage of builtin function: ${stmt.name}`);
+        throw new Error(`Unexpected builtin call: ${stmt.name}`);
     }
   }
 
-  private evalTableToString(
-    expr: Expression,
-    funcname: string | null = null
-  ): string {
-    const exclude = [
-      ExpressionType.TableDefinition,
-      ExpressionType.Number,
-      ExpressionType.Variable,
-      ExpressionType.FunctionCall,
-      "Error",
-    ];
-    if (exclude.includes(expr.type)) {
-      throw new Error(
-        "Only logical expressions can be converted to a truth table"
-      );
-    }
-
-    const variables = new Set<string>();
-    const collectVariables = (e: Expression) => {
-      if (e.type === ExpressionType.Variable) {
-        if (!e.reference) {
-          variables.add(e.name);
-        }
-      } else if (e.type === ExpressionType.BinaryExpression) {
-        collectVariables(e.left);
-        collectVariables(e.right);
-      } else if (
-        e.type === ExpressionType.UnaryExpression ||
-        e.type === ExpressionType.BuiltinCall
-      ) {
-        collectVariables(e.operand);
-      }
-    };
-
-    collectVariables(expr);
-
-    const variableList = Array.from(variables);
-    const numRows = Math.pow(2, variableList.length);
-    const rows: string[] = [];
-
-    const outputName =
-      funcname || this.evalExpressionToString(expr, new Map(), true);
-    rows.push(variableList.join(" ") + ` | ${outputName}`);
-
-    for (let i = 0; i < numRows; i++) {
-      const localVariables = new Map<string, BinaryNumber>();
-      const binaryString = i.toString(2).padStart(variableList.length, "0");
-
-      for (let j = 0; j < variableList.length; j++) {
-        localVariables.set(
-          variableList[j],
-          parseInt(binaryString[j]) as BinaryNumber
-        );
-      }
-
-      const result = this.evalExpression(expr, localVariables);
-      const row = binaryString.split("").join(" ") + " | " + result;
-      rows.push(row);
-    }
-
-    return rows.join("\n") + "\n";
-  }
-
-  private evalExpressionToString(
-    expr: Expression,
-    replaceVar: Map<string, string> = new Map(),
-    allowall: boolean = false
-  ): string {
-    switch (expr.type) {
-      case ExpressionType.Number:
-        return expr.value.toString();
-      case ExpressionType.Variable:
-        if (replaceVar.has(expr.name)) {
-          return replaceVar.get(expr.name)!;
-        }
-        if (this.variables.has(expr.name)) {
-          return expr.name + (expr.reference ? "*" : "");
-        }
-
-        if (allowall) {
-          return expr.name + (expr.reference ? "*" : "");
-        }
-
-        throw new Error(`Undefined variable: ${expr.name}`);
-      case ExpressionType.UnaryExpression: {
-        const operand = this.evalExpressionToString(
-          expr.operand,
-          replaceVar,
-          allowall
-        );
-        if (expr.operator === Operators.Not) {
-          return `${expr.operator} ${operand}`;
-        }
-        return `${expr.operator}(${operand})`;
-      }
-      case ExpressionType.BinaryExpression: {
-        const left = this.evalExpressionToString(
-          expr.left,
-          replaceVar,
-          allowall
-        );
-        const right = this.evalExpressionToString(
-          expr.right,
-          replaceVar,
-          allowall
-        );
-        if (
-          expr.operator === Operators.And ||
-          expr.operator === Operators.Nand
-        ) {
-          return `${left} ${expr.operator} ${right}`;
-        }
-        return `(${left} ${expr.operator} ${right})`;
-      }
-      case ExpressionType.FunctionCall:
-        const func = this.functions.get(expr.name);
-        if (!func || func.type !== StatementType.FunctionDefinition) {
-          if (allowall) {
-            return (
-              expr.name +
-              "(" +
-              expr.args
-                .map((arg) =>
-                  this.evalExpressionToString(arg, replaceVar, allowall)
-                )
-                .join(", ") +
-              ")"
-            );
-          }
-
-          throw new Error(`Undefined function: ${expr.name}`);
-        }
-
-        const replacement = new Map<string, string>();
-        if (func.parameters.length !== expr.args.length) {
-          throw new Error(
-            `Function ${func.name} called with ${expr.args.length} arguments, expected ${func.parameters.length}`
-          );
-        }
-
-        for (let i = 0; i < func.parameters.length; i++) {
-          replacement.set(
-            func.parameters[i],
-            this.evalExpressionToString(expr.args[i], replaceVar, allowall)
-          );
-        }
-        const stringFunc = `${func.name}(${func.parameters
-          .map((param) => replacement.get(param))
-          .join(", ")})`;
-        return `${stringFunc} = ${this.evalExpressionToString(
-          func.expression,
-          replacement,
-          allowall
-        )}`;
-      case ExpressionType.BuiltinCall:
-        return this.evalBuiltinFunctionCallToString(expr, replaceVar, allowall);
-      case ExpressionType.TableDefinition:
-        throw new Error("TableDefinition cannot be evaluated directly");
-      case "Error":
-        throw new Error(`ErrorCase: ${expr.message}`);
-    }
-  }
-
-  private evalBuiltinFunctionCallToString(
-    expr: Expression,
-    replaceVar: Map<string, string>,
-    allowall: boolean
-  ): string {
+  private evalBuiltinExpression(expr: Expression): Expression {
     if (expr.type !== ExpressionType.BuiltinCall) {
-      throw new Error(`Expected BuiltinCall, got ${expr.type}`);
+      throw new Error(`Unexpected expression type: ${expr.type}`);
     }
 
     switch (expr.name) {
-      case BuiltinType.ToNand:
-        return this.evalExpressionToString(
-          convertExpressionToLogicGate(expr.operand, Operators.Nand),
-          replaceVar,
-          allowall
-        );
-      case BuiltinType.ToNor:
-        return this.evalExpressionToString(
-          convertExpressionToLogicGate(expr.operand, Operators.Nor),
-          replaceVar,
-          allowall
-        );
+      case Keywords.SolvePOS:
+      case Keywords.SolveSOP:
+        return expr;
+      case Keywords.ToNand:
+      case Keywords.ToNor:
+        return expr;
       default:
-        return this.evalExpressionToString(expr.operand, replaceVar, allowall);
+        throw new Error(`Unexpected builtin expression: ${expr.name}`);
     }
   }
 
-  private evalExpression(
-    expr: Expression,
-    localVariables: Map<string, BinaryNumber> = new Map()
+  private evalUnaryExpression(
+    op: Operators,
+    operand: BinaryNumber
   ): BinaryNumber {
-    switch (expr.type) {
-      case ExpressionType.Number:
-        return expr.value;
-      case ExpressionType.Variable:
-        if (localVariables.size > 0) {
-          if (expr.reference && !this.variables.has(expr.name)) {
-            throw new Error(`Undefined variable reference: ${expr.name}`);
-          }
-          if (!expr.reference && !localVariables.has(expr.name)) {
-            throw new Error(`Undefined variable: ${expr.name}`);
-          }
-
-          return expr.reference
-            ? this.variables.get(expr.name)!
-            : localVariables.get(expr.name)!;
-        } else {
-          if (!this.variables.has(expr.name)) {
-            throw new Error(`Undefined variable: ${expr.name}`);
-          }
-          return this.variables.get(expr.name)!;
-        }
-      case ExpressionType.UnaryExpression: {
-        const operand = this.evalExpression(expr.operand, localVariables);
-        return this.evalUnary(expr.operator, operand);
-      }
-      case ExpressionType.BinaryExpression: {
-        const left = this.evalExpression(expr.left, localVariables);
-        const right = this.evalExpression(expr.right, localVariables);
-        return this.evalBinary(expr.operator, left, right);
-      }
-      case ExpressionType.FunctionCall:
-        return this.evalFunctionCall(expr, localVariables);
-      case ExpressionType.BuiltinCall: {
-        return this.evalBuiltinFunctionCall(expr, localVariables);
-      }
-      case ExpressionType.TableDefinition:
-        throw new Error("TableDefinition cannot be evaluated directly");
-      case "Error":
-        throw new Error(`ErrorCase: ${expr.message}`);
-    }
-  }
-
-  private evalUnary(op: Operators, operand: BinaryNumber): BinaryNumber {
     switch (op) {
       case Operators.Not:
         return operand ? 0 : 1;
@@ -458,7 +132,7 @@ class Interpreter {
     }
   }
 
-  private evalBinary(
+  private evalBinaryExpression(
     op: Operators,
     left: BinaryNumber,
     right: BinaryNumber
@@ -470,75 +144,412 @@ class Interpreter {
         return left || right;
       case Operators.Xor:
         return (left ^ right) as BinaryNumber;
-
       case Operators.Nor:
         return left || right ? 0 : 1;
       case Operators.Nand:
         return left && right ? 0 : 1;
       case Operators.Xnor:
         return left ^ right ? 0 : 1;
-
-      case Operators.Equal:
-        return left === right ? 1 : 0;
-      case Operators.Nequal:
-        return left !== right ? 1 : 0;
-
       case Operators.Imply:
         return !left || right ? 1 : 0;
       case Operators.Nimply:
         return left && !right ? 1 : 0;
-
       default:
         throw new Error(`Unsupported binary operator: ${op}`);
     }
   }
 
-  private evalBuiltinFunctionCall(
+  private evalVariableExpression(
     expr: Expression,
-    parentLocalVar: Map<string, BinaryNumber>
+    localVariables: MLCVariable
   ): BinaryNumber {
-    if (expr.type !== ExpressionType.BuiltinCall) {
-      throw new Error(`Expected BuiltinCall, got ${expr.type}`);
+    if (expr.type !== ExpressionType.Variable) {
+      throw new Error(`Unexpected expression type: ${expr.type}`);
     }
 
-    switch (expr.name) {
-      case BuiltinType.ToNand:
-      case BuiltinType.ToNor:
-        return this.evalExpression(expr.operand, parentLocalVar);
-      case BuiltinType.Simplify:
-        return this.evalExpression(expr.operand, parentLocalVar);
-      default:
-        throw new Error(`Invalid usage of builtin function: ${expr.name}`);
+    if (!this.variables.hasOwnProperty(expr.name)) {
+      throw new Error(`Variable ${expr.name} not defined`);
+    }
+
+    if (localVariables.hasOwnProperty(expr.name)) {
+      return localVariables[expr.name];
+    }
+
+    if (Object.keys(localVariables).length == 0) {
+      if (expr.reference) {
+        throw new Error(`Variable ${expr.name} is a reference`);
+      }
+
+      return this.variables[expr.name];
+    } else {
+      if (!expr.reference) {
+        throw new Error(`Variable ${expr.name} is not a reference`);
+      }
+
+      return this.variables[expr.name];
     }
   }
 
-
-  private evalFunctionCall(
+  private evalFunctionExpression(
     expr: Expression,
-    parentLocalVar: Map<string, BinaryNumber>
+    parentLocalVariables: MLCVariable
   ): BinaryNumber {
     if (expr.type !== ExpressionType.FunctionCall) {
-      throw new Error(`Expected FunctionCall, got ${expr.type}`);
-    }
-    if (!this.functions.has(expr.name)) {
-      throw new Error(`Undefined function: ${expr.name}`);
-    }
-    const func = this.functions.get(expr.name)!;
-    if (func.type !== StatementType.FunctionDefinition) {
-      throw new Error(`Expected FunctionDefinition, got ${func.type}`);
+      throw new Error(`Unexpected expression type: ${expr.type}`);
     }
 
-    const localVariables = new Map<string, BinaryNumber>();
-    for (let i = 0; i < func.parameters.length; i++) {
-      localVariables.set(
-        func.parameters[i],
-        this.evalExpression(expr.args[i], parentLocalVar)
+    if (!this.functions.hasOwnProperty(expr.name)) {
+      throw new Error(`Function ${expr.name} not defined`);
+    }
+
+    const func = this.functions[expr.name];
+    if (func.type !== StatementType.Function) {
+      throw new Error(`Expected function, got ${func.type}`);
+    }
+    if (func.parameters.length !== expr.parameters.length) {
+      throw new Error(
+        `Function ${func.name} expects ${func.parameters.length} parameters, got ${expr.parameters.length}`
       );
     }
 
-    return this.evalExpression(func.expression, localVariables);
+    const localVariables: MLCVariable = {};
+    for (let i = 0; i < func.parameters.length; i++) {
+      localVariables[func.parameters[i]] = this.evalExpression(
+        expr.parameters[i],
+        parentLocalVariables
+      );
+    }
+
+    return this.evalExpression(func.body, localVariables);
   }
 
+  private evalExpression(
+    expr: Expression,
+    localVariables: MLCVariable = {}
+  ): BinaryNumber {
+    switch (expr.type) {
+      case ExpressionType.Number:
+        return expr.value;
+      case ExpressionType.Variable:
+        return this.evalVariableExpression(expr, localVariables);
+      case ExpressionType.FunctionCall:
+        return this.evalFunctionExpression(expr, localVariables);
+      case ExpressionType.Binary: {
+        const left = this.evalExpression(expr.left, localVariables);
+        const right = this.evalExpression(expr.right, localVariables);
+        return this.evalBinaryExpression(expr.operator, left, right);
+      }
+      case ExpressionType.Unary: {
+        const operand = this.evalExpression(expr.operand, localVariables);
+        return this.evalUnaryExpression(expr.operator, operand);
+      }
+      case ExpressionType.BuiltinCall:
+        return this.evalExpression(
+          this.evalBuiltinExpression(expr),
+          localVariables
+        );
+      default:
+        throw new Error("Unexpected expression type");
+    }
+  }
+
+  private getVariableInExpression(expr: Expression): string[] {
+    switch (expr.type) {
+      case ExpressionType.Number:
+        return [];
+      case ExpressionType.Variable:
+        return [expr.name];
+      case ExpressionType.FunctionCall:
+        return expr.parameters.flatMap((param) =>
+          this.getVariableInExpression(param)
+        );
+      case ExpressionType.Binary:
+        return [
+          ...this.getVariableInExpression(expr.left),
+          ...this.getVariableInExpression(expr.right),
+        ];
+      case ExpressionType.Unary:
+        return this.getVariableInExpression(expr.operand);
+      case ExpressionType.BuiltinCall:
+        return this.getVariableInExpression(expr);
+      default:
+        throw new Error("Unexpected expression type");
+    }
+  }
+
+  public getTruthTable(expr: Expression) {
+    const header = ["", this.showExpression(expr)];
+
+    const localVariables: MLCVariable = {};
+    for (const variable of this.getVariableInExpression(expr)) {
+      localVariables[variable] = 0;
+    }
+
+    const cmbs = getCombinations(Object.keys(localVariables).length);
+
+    const rows: string[][] = [];
+    for (const cmb of cmbs) {
+      Object.keys(localVariables).forEach((key, i) => {
+        localVariables[key] = cmb[i];
+      });
+      rows.push([
+        cmb.join(""),
+        this.evalExpression(expr, localVariables).toString(),
+      ]);
+    }
+
+    return [header, ...rows];
+  }
+
+  public showTruthTable(expr: Expression | string[][]): string {
+    let table: string[][] = expr as string[][]; 
+    if(!(expr instanceof Array)) {
+      table = this.getTruthTable(expr);
+    }
+    const header = table[0].map((col) => col.toString());
+
+    const rows = table
+      .slice(1)
+      .map((row) => row.map((col) => col.toString()).join(" | "))
+      .join("\n");
+    const separator = header.map(() => "---").join(" | ");
+    return `| ${header.join(" | ")} |\n| ${separator} |\n| ${rows} |`;
+  }
+
+  private showBuiltinExpression(
+    expr: Expression & {
+      type: ExpressionType.BuiltinCall;
+    }
+  ): string {
+    switch (expr.name) {
+      case Keywords.ToNand:
+        return this.showExpression(
+          this.convertExpressionToLogicGate(expr, Operators.Nand)
+        );
+      case Keywords.ToNor:
+        return this.showExpression(
+          this.convertExpressionToLogicGate(expr, Operators.Nor)
+        );
+      case Keywords.SolvePOS:
+      case Keywords.SolveSOP:
+        // TODO: Implement SOLVE
+        return this.showExpression(expr.parameters[0]);
+      default:
+        throw new Error(`Unexpected builtin expression: ${expr.name}`);
+    }
+  }
+
+  public showExpression(
+    expr: Expression,
+    inlineFunctions: boolean = false,
+    replace: Record<string, string> = {}
+  ): string {
+    switch (expr.type) {
+      case ExpressionType.String:
+      case ExpressionType.Number:
+        return expr.value.toString();
+      case ExpressionType.Variable: {
+        if (replace.hasOwnProperty(expr.name)) {
+          return replace[expr.name];
+        }
+        return expr.name + (expr.reference ? "*" : "");
+      }
+      case ExpressionType.FunctionCall: {
+        const params = expr.parameters.map((param) =>
+          this.showExpression(param, inlineFunctions, replace)
+        );
+        const str = `${expr.name}(${params.join(", ")})`;
+        if (inlineFunctions) {
+          const func = this.functions[expr.name];
+          if (!func) throw new Error(`Function ${expr.name} not defined`);
+
+          const newReplace: Record<string, string> = {};
+          func.parameters.forEach((param, i) => {
+            newReplace[param] = params[i];
+          });
+          return str + " = " + this.showExpression(func.body, true, newReplace);
+        }
+        return str;
+      }
+      case ExpressionType.Binary:
+        return `(${this.showExpression(expr.left, inlineFunctions, replace)} ${
+          expr.operator
+        } ${this.showExpression(expr.right, inlineFunctions, replace)})`;
+      case ExpressionType.Unary:
+        return `${expr.operator} ${this.showExpression(
+          expr.operand,
+          inlineFunctions,
+          replace
+        )}`;
+      case ExpressionType.BuiltinCall: {
+        switch (expr.name) {
+          case Keywords.ToNand:
+          case Keywords.ToNor:
+          case Keywords.SolvePOS:
+          case Keywords.SolveSOP:
+            const params = expr.parameters.map((param) =>
+              this.showExpression(param, inlineFunctions, replace)
+            );
+            return `<${expr.name}>(${params.join(
+              ", "
+            )}) = ${this.showBuiltinExpression(expr)}`;
+          default:
+            throw new Error(`Unexpected builtin expression: ${expr.name}`);
+        }
+      }
+      case ExpressionType.Error:
+        throw new Error(expr.message);
+    }
+  }
+
+  public convertFunctionTableToFunction(
+    stmt: Statement & { type: StatementType.FunctionTable }
+  ): Statement & { type: StatementType.Function } {
+    const minterms: Expression[] = [];
+
+    for (const row of stmt.table) {
+      const terms: Expression[] = [];
+
+      for (let i = 0; i < row.index.length; i++) {
+        terms.push({
+          type: ExpressionType.Binary,
+          operator: row.index[i] == 1 ? Operators.And : Operators.Nand,
+          left: {
+            type: ExpressionType.Variable,
+            name: stmt.parameters[i],
+            reference: false,
+            range: RANGE_NOT_SET,
+          },
+          right: row.value,
+          range: RANGE_NOT_SET,
+        });
+      }
+
+      minterms.push(
+        terms.reduce((a, b) => ({
+          type: ExpressionType.Binary,
+          operator: Operators.And,
+          left: a,
+          right: b,
+          range: RANGE_NOT_SET,
+        }))
+      );
+    }
+
+    const body: Expression =
+      minterms.length === 0
+        ? { type: ExpressionType.Number, value: 0, range: RANGE_NOT_SET }
+        : minterms.reduce((a, b) => ({
+            type: ExpressionType.Binary,
+            operator: Operators.Or,
+            left: a,
+            right: b,
+            range: RANGE_NOT_SET,
+          }));
+
+    return {
+      type: StatementType.Function,
+      name: stmt.name,
+      parameters: stmt.parameters,
+      body,
+      range: RANGE_NOT_SET,
+    };
+  }
+
+  public convertExpressionToLogicGate(
+    expr: Expression,
+    operator: Operators
+  ): Expression {
+    const logicGate = (a: Expression, b: Expression): Expression => ({
+      type: ExpressionType.Binary,
+      operator,
+      left: a,
+      right: b,
+      range: {
+        start: minPosition(a.range.start, b.range.start),
+        end: maxPosition(a.range.end, b.range.end),
+      },
+    });
+
+    switch (expr.type) {
+      case ExpressionType.Unary: {
+        const inner = this.convertExpressionToLogicGate(expr.operand, operator);
+        return logicGate(inner, inner);
+      }
+      case ExpressionType.Binary: {
+        const left = this.convertExpressionToLogicGate(expr.left, operator);
+        const right = this.convertExpressionToLogicGate(expr.right, operator);
+
+        switch (expr.operator) {
+          case Operators.And:
+            if (operator == Operators.Nand) {
+              const a = logicGate(left, right);
+              return logicGate(a, a);
+            } else {
+              return logicGate(logicGate(left, left), logicGate(right, right));
+            }
+
+          case Operators.Or:
+            if (operator == Operators.Nand) {
+              return logicGate(logicGate(left, left), logicGate(right, right));
+            } else {
+              const a = logicGate(left, right);
+              return logicGate(a, a);
+            }
+
+          case Operators.Xor: {
+            const a = logicGate(left, right);
+            const b = logicGate(left, a);
+            const c = logicGate(right, a);
+            return logicGate(b, c);
+          }
+
+          case Operators.Xnor: {
+            const a = logicGate(left, right);
+            const b = logicGate(left, a);
+            const c = logicGate(right, a);
+            const d = logicGate(b, c);
+            return logicGate(d, d);
+          }
+
+          case Operators.Nand:
+            if (operator == Operators.Nor) {
+              const a = logicGate(
+                logicGate(left, left),
+                logicGate(right, right)
+              );
+              return logicGate(a, a);
+            }
+            return expr;
+
+          case Operators.Nor:
+            if (operator == Operators.Nand) {
+              const a = logicGate(
+                logicGate(left, left),
+                logicGate(right, right)
+              );
+              return logicGate(a, a);
+            }
+            return expr;
+
+          case Operators.Not:
+            return expr;
+          default:
+            return expr;
+        }
+      }
+      case ExpressionType.BuiltinCall:
+      case ExpressionType.FunctionCall:
+        return {
+          ...expr,
+          parameters: expr.parameters.map((arg) =>
+            this.convertExpressionToLogicGate(arg, operator)
+          ),
+        };
+      default:
+        return expr;
+    }
+  }
 }
 
 export { Interpreter };

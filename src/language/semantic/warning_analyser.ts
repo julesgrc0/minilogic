@@ -22,7 +22,7 @@ type SemanticWarning = {
   new_object?: Statement | Expression;
 };
 
-class SemanticWarningAnalyser {
+class SemanticWarningAnalyzer {
   private variables: Record<string, { stmt: Statement; count: number }> = {};
   private functions: Record<string, { stmt: Statement; count: number }> = {};
 
@@ -387,4 +387,4 @@ class SemanticWarningAnalyser {
   }
 }
 
-export { SemanticWarningAnalyser, SemanticWarning, SemanticWarningType };
+export { SemanticWarningAnalyzer, SemanticWarning, SemanticWarningType };

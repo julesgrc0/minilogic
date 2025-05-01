@@ -1,16 +1,40 @@
+type Position = {
+  line: number;
+  column: number;
+  offset: number;
+};
+
+type Range = {
+  start: Position;
+  end: Position;
+};
+
+type CodeFix = {
+  message: string;
+  value: string | null;
+} & Range;
+
 enum TokenType {
   Identifier = "Identifier",
-  Number = "Number",
-  Equals = "Equals",
-  LParen = "LParen",
-  RParen = "RParen",
-  Comma = "Comma",
-  Star = "Star",
-  LBracket = "LBracket",
-  RBracket = "RBracket",
   Operator = "Operator",
   Keyword = "Keyword",
+  BinaryNumber = "BinaryNumber",
+  BinaryNumberList = "BinaryNumberList",
+  String = "String",
+
+  Equal = "Equal",
+  Star = "Star",
+  Comma = "Comma",
+  Bar = "Bar",
+
+  LParen = "LParen",
+  RParen = "RParen",
+
+  LBracket = "LBracket",
+  RBracket = "RBracket",
+
   Comment = "Comment",
+  Error = "Error",
   EOF = "EOF",
 }
 
@@ -24,264 +48,277 @@ enum Operators {
   Xnor = "xnor",
   Imply = "imply",
   Nimply = "nimply",
-  Equal = "equal",
-  Nequal = "nequal",
 }
 
-type Token =
+enum Keywords {
+  Print = "PRINT",
+  Show = "SHOW",
+  Table = "TABLE",
+  Graph = "GRAPH",
+
+  Export = "EXPORT",
+  Import = "IMPORT",
+
+  ToNand = "TO_NAND",
+  ToNor = "TO_NOR",
+
+  SolveSOP = "SOLVE_SOP",
+  SolvePOS = "SOLVE_POS",
+}
+
+type BinaryNumber = 1 | 0;
+
+type Token = {
+  start: Position;
+  end: Position;
+} & (
   | {
       type: TokenType;
       value: string;
-      pos: number;
-
-      line: number;
-      column: number;
     }
   | {
-      type: "Operator";
+      type: TokenType.Operator;
       value: Operators;
-      pos: number;
-
-      line: number;
-      column: number;
-    };
+    }
+  | {
+      type: TokenType.Keyword;
+      value: Keywords;
+    }
+  | {
+      type: TokenType.BinaryNumber;
+      value: BinaryNumber;
+    }
+  | {
+      type: TokenType.BinaryNumberList;
+      value: BinaryNumber[];
+    }
+  | {
+      type: TokenType.EOF;
+      value: null;
+    }
+);
 class Lexer {
-  private pos: number = 0;
-  private line: number = 0;
-  private column: number = 0;
+  private pos = 0;
+  private line = 0;
+  private column = 0;
   private currentChar: string | null;
-  private tokens: Record<number, Token> = {};
+  private tokens: Token[] = [];
 
-  private keywords = new Set([
-    "PRINT",
-    "SHOW",
-    "TABLE",
-    "GRAPH",
-    "EXPORT",
-    "TO_NAND",
-    "TO_NOR",
-    "SIMPLIFY",
-  ]);
-  private operators = new Set([
-    "not",
-    "and",
-    "or",
-    "xor",
-    "nand",
-    "nor",
-    "xnor",
-    "imply",
-    "nimply",
-    "equal",
-    "nequal",
-  ]);
+  private keywords = new Set(Object.values(Keywords));
+  private operators = new Set(Object.values(Operators));
+  private symbols = {
+    "=": TokenType.Equal,
+    "*": TokenType.Star,
+    ",": TokenType.Comma,
+    "|": TokenType.Bar,
+    "(": TokenType.LParen,
+    ")": TokenType.RParen,
+    "[": TokenType.LBracket,
+    "]": TokenType.RBracket,
+  };
 
-  constructor(private input: string) {
-    this.currentChar = input.charAt(0);
+  public constructor(private input: string) {
+    this.currentChar = this.input[this.pos] ?? null;
   }
 
-  private pushToken(
-    startPos: number,
-    token: Omit<Token, "pos" | "line" | "column">
-  ): Token {
-    this.tokens[startPos] = {
-      ...token,
-      pos: startPos,
-      line: this.line,
-      column: this.column,
-    } as any;
-
-    return this.tokens[startPos];
-  }
-
-  private advance(): void {
-    if (this.currentChar === "\n") {
-      this.line += 1;
-      this.column = 1;
-    } else {
-      this.column += 1;
-    }
-
-    this.pos++;
-    this.currentChar =
-      this.pos < this.input.length ? this.input.charAt(this.pos) : null;
-  }
-
-  private skipWhitespace() {
-    while (this.currentChar !== null && /\s/.test(this.currentChar)) {
-      this.advance();
-    }
-  }
-
-  private number(): Token {
-    let result = "";
-    const startPos = this.pos;
-    while (this.currentChar !== null && /[01]/.test(this.currentChar)) {
-      result += this.currentChar;
-      this.advance();
-    }
-    return this.pushToken(startPos, { type: TokenType.Number, value: result });
-  }
-
-  private identifier(): Token {
-    let result = "";
-    const startPos = this.pos;
-    while (this.currentChar !== null && /[A-Za-z0-9_]/.test(this.currentChar)) {
-      result += this.currentChar;
-      this.advance();
-    }
-
-    if (this.keywords.has(result.toUpperCase())) {
-      return this.pushToken(startPos, {
-        type: TokenType.Keyword,
-        value: result.toUpperCase(),
-      });
-    }
-    if (this.operators.has(result.toLowerCase())) {
-      return this.pushToken(startPos, {
-        type: TokenType.Operator,
-        value: result.toLowerCase() as Operators,
-      });
-    }
-
-    return this.pushToken(startPos, {
-      type: TokenType.Identifier,
-      value: result,
-    });
-  }
-
-  private comment(): Token {
-    let result = "";
-    const startPos = this.pos;
-    while (this.currentChar !== null && this.currentChar !== "\n") {
-      result += this.currentChar;
-      this.advance();
-    }
-    return this.pushToken(startPos, { type: TokenType.Comment, value: result });
-  }
-
-  public getTokenById(id: number): Token | undefined {
-    return this.tokens[id];
-  }
-
-  public getTokenByPosition(line: number, column: number): Token | undefined {
-    const exact = Object.values(this.tokens).find(
-      (token) => token.line === line && token.column === column
-    );
-    if (exact) return exact;
-
-    const sameLineBefore = Object.values(this.tokens)
-      .filter((token) => token.line === line && token.column <= column)
-      .sort((a, b) => b.column - a.column)[0];
-
-    if (sameLineBefore) return sameLineBefore;
-
-    const sameLineAfter = Object.values(this.tokens)
-      .filter((token) => token.line === line && token.column > column)
-      .sort((a, b) => a.column - b.column)[0];
-
-    if (sameLineAfter) return sameLineAfter;
-
-    const beforeLine = Object.values(this.tokens)
-      .filter((token) => token.line < line)
-      .sort((a, b) => b.line - a.line || b.column - a.column)[0];
-
-    if (beforeLine) return beforeLine;
-
-    const afterLine = Object.values(this.tokens)
-      .filter((token) => token.line > line)
-      .sort((a, b) => a.line - b.line || a.column - b.column)[0];
-
-    return afterLine;
-  }
-
-  public getFirstTokenAtLine(line: number): Token | undefined {
-    const firstToken = Object.values(this.tokens)
-      .filter((token) => token.line === line)
-      .sort((a, b) => a.column - b.column)[0];
-    if (firstToken) return firstToken;
-
-    const nearestToken = Object.values(this.tokens)
-      .filter((token) => token.line < line)
-      .sort((a, b) => b.line - a.line || b.column - a.column)[0];
-    if (nearestToken) return nearestToken;
-
-    return Object.values(this.tokens)
-      .filter((token) => token.line > line)
-      .sort((a, b) => a.line - b.line || a.column - b.column)[0];
-  }
-
-  public getOperators(): Operators[] {
-    return Array.from(this.operators) as Operators[];
-  }
-
-  public getNextToken(noerror = false): Token {
+  public tokenize(): Token[] {
     while (this.currentChar !== null) {
       if (/\s/.test(this.currentChar)) {
         this.skipWhitespace();
         continue;
       }
 
-      if (this.currentChar === "#") return this.comment();
-      if (/[A-Za-z]/.test(this.currentChar)) return this.identifier();
-      if (/[01]/.test(this.currentChar)) return this.number();
+      const start = this.getPosition();
 
-      const startPos = this.pos;
-
-      switch (this.currentChar) {
-        case "=":
-          this.advance();
-          return this.pushToken(startPos, {
-            type: TokenType.Equals,
-            value: "=",
-          });
-        case "(":
-          this.advance();
-          return this.pushToken(startPos, {
-            type: TokenType.LParen,
-            value: "(",
-          });
-        case ")":
-          this.advance();
-          return this.pushToken(startPos, {
-            type: TokenType.RParen,
-            value: ")",
-          });
-        case ",":
-          this.advance();
-          return this.pushToken(startPos, {
-            type: TokenType.Comma,
-            value: ",",
-          });
-        case "*":
-          this.advance();
-          return this.pushToken(startPos, { type: TokenType.Star, value: "*" });
-        case "[":
-          this.advance();
-          return this.pushToken(startPos, {
-            type: TokenType.LBracket,
-            value: "[",
-          });
-        case "]":
-          this.advance();
-          return this.pushToken(startPos, {
-            type: TokenType.RBracket,
-            value: "]",
-          });
+      if (this.currentChar === "#") {
+        this.tokens.push(this.comment());
+        continue;
       }
+
+      if (this.currentChar === "0" || this.currentChar === "1") {
+        this.tokens.push(this.binaryStringToken());
+        continue;
+      }
+
+      if (this.currentChar === '"') {
+        this.tokens.push(this.string());
+        continue;
+      }
+
+      if (/[a-zA-Z_]/.test(this.currentChar)) {
+        this.tokens.push(this.identifier());
+        continue;
+      }
+
+      const found = Object.keys(this.symbols).includes(this.currentChar);
+
+      this.tokens.push({
+        type: found
+          ? this.symbols[this.currentChar as keyof typeof this.symbols]
+          : TokenType.Error,
+        value: found
+          ? this.currentChar
+          : `Unexpected character: ${this.currentChar}`,
+        start,
+        end: start,
+      });
 
       this.advance();
-      if (noerror) {
-        return this.pushToken(this.pos, { type: TokenType.EOF, value: "" });
-      }
-
-      throw new Error(
-        `Unexpected character '${this.currentChar}' at line ${this.line}, column ${this.column}`
-      );
     }
 
-    return this.pushToken(this.pos, { type: TokenType.EOF, value: "" });
+    this.tokens.push({
+      type: TokenType.EOF,
+      start: this.getPosition(),
+      end: this.getPosition(),
+      value: null,
+    });
+
+    return this.tokens;
+  }
+
+  private binaryStringToken(): Token {
+    const start = this.getPosition();
+    let value: BinaryNumber[] = [];
+
+    while (this.currentChar === "0" || this.currentChar === "1") {
+      value.push(this.currentChar === "1" ? 1 : 0);
+      this.advance();
+    }
+
+    return {
+      type: (value.length == 1
+        ? TokenType.BinaryNumber
+        : TokenType.BinaryNumberList) as any,
+      value: value.length == 1 ? value[0] : value,
+      start,
+      end: this.getPosition(),
+    };
+  }
+
+  private skipWhitespace() {
+    while (this.currentChar !== null && /\s/.test(this.currentChar)) {
+      if (this.currentChar === "\n") {
+        this.line++;
+        this.column = 0;
+      } else {
+        this.column++;
+      }
+      this.advance();
+    }
+  }
+
+  private identifier(): Token {
+    const start = this.getPosition();
+    let value = "";
+
+    while (this.currentChar !== null && /\w/.test(this.currentChar)) {
+      value += this.currentChar;
+      this.advance();
+    }
+
+    if (this.keywords.has(value as Keywords)) {
+      return {
+        type: TokenType.Keyword,
+        value: value as Keywords,
+        start,
+        end: this.getPosition(),
+      };
+    } else if (this.operators.has(value as Operators)) {
+      return {
+        type: TokenType.Operator,
+        value: value as Operators,
+        start,
+        end: this.getPosition(),
+      };
+    } else {
+      return {
+        type: TokenType.Identifier,
+        value,
+        start,
+        end: this.getPosition(),
+      };
+    }
+  }
+
+  private comment(): Token {
+    const start = this.getPosition();
+    let value = "";
+    while (this.currentChar !== null && this.currentChar !== "\n") {
+      value += this.currentChar;
+      this.advance();
+    }
+    return {
+      type: TokenType.Comment,
+      value,
+      start,
+      end: this.getPosition(),
+    };
+  }
+
+  private string(): Token {
+    const start = this.getPosition();
+    let value = "";
+    this.advance();
+
+    while (this.currentChar !== null && this.currentChar !== '"') {
+      if (this.currentChar === "\\") {
+        this.advance();
+        switch (this.currentChar as any) {
+          case "n":
+            value += "\n";
+            break;
+          case "t":
+            value += "\t";
+            break;
+          case '"':
+            value += '"';
+            break;
+          default:
+            value += this.currentChar;
+            break;
+        }
+      } else {
+        value += this.currentChar;
+      }
+      this.advance();
+    }
+    if (this.currentChar === '"') {
+      this.advance();
+    } else {
+      return {
+        type: TokenType.Error,
+        value: `Unterminated string literal`,
+        start,
+        end: this.getPosition(),
+      };
+    }
+    return {
+      type: TokenType.String,
+      value,
+      start,
+      end: this.getPosition(),
+    };
+  }
+
+  private advance() {
+    this.pos++;
+    this.column++;
+    this.currentChar = this.input[this.pos] ?? null;
+  }
+
+  private getPosition(): Position {
+    return { line: this.line, column: this.column, offset: this.pos };
   }
 }
 
-export { Lexer, TokenType, Token, Operators };
+export {
+  Lexer,
+  TokenType,
+  Token,
+  Operators,
+  Keywords,
+  BinaryNumber,
+  Position,
+  Range,
+  CodeFix,
+};

@@ -10,10 +10,10 @@ F2(A, B) = TO_NAND(A and B or not B xnor A)
 # TABLE(F2,F, not A, A and not B* or B)
 
 G(A, B) = [
-    00, 1,
-    01, 0,
-    10, 0,
-    11, 1,
+    00, 1
+    01, 0
+    10, 0
+    11, 1
 ]
 
 veryLongFuncName(A) = A or not A*  and A nand F(A)
