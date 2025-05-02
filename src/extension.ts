@@ -1,192 +1,11 @@
 import * as vscode from "vscode";
-import * as path from "path";
 
-import { CodeFix, Lexer, Operators } from "./language/lexer";
-import {
-  Expression,
-  ExpressionType,
-  Parser,
-  StatementType,
-} from "./language/parser";
-import { Interpreter } from "./language/interpreter";
+import run from "./commands/run";
+import format from "./commands/format";
+import update from "./commands/update";
+import quickfix from "./commands/quickfix";
 
-import {
-  SemanticError,
-  SemanticErrorAnalyzer,
-} from "./language/semantic/error_analyser";
-import { SemanticErrorSolver } from "./language/semantic/error_solver";
-import {
-  SemanticWarning,
-  SemanticWarningAnalyzer,
-} from "./language/semantic/warning_analyser";
-import { SemanticWarningSolver } from "./language/semantic/warning_solver";
-
-import { convertRange, getCombinations } from "./language/utils";
-import { Format } from "./language/format";
-
-let semanticErrors: SemanticError[] = [];
-let semanticWarnings: SemanticWarning[] = [];
-let variables: string[] = [];
-let functions: string[] = [];
-
-const actionRunCode = () => {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor || editor.document.languageId !== "minilogic") {
-    vscode.window.showErrorMessage("❌ No active MiniLogic file to run!");
-    return;
-  }
-
-  const outputChannel = vscode.window.createOutputChannel("MiniLogic");
-  outputChannel.show(true);
-
-  const fileName = path.basename(editor.document.fileName);
-  outputChannel.appendLine(`\n\n🔥 Running ${fileName}...`);
-
-  const lexer = new Lexer(editor.document.getText());
-  const parser = new Parser(lexer.tokenize());
-
-  const ast = parser.parse();
-  const errors = new SemanticErrorAnalyzer(ast).analyze();
-
-  if (errors.length > 0) {
-    outputChannel.appendLine(
-      `❌ Semantic Error: Invalid MiniLogic code, found ${errors.length} error(s) :`
-    );
-    for (const error of errors) {
-      outputChannel.appendLine(`${error.message}`);
-    }
-    return;
-  }
-
-  let result: string[];
-  try {
-    result = new Interpreter(ast).execute();
-  } catch (error) {
-    outputChannel.appendLine("❌ Interpreter Error: Invalid MiniLogic code.");
-    outputChannel.appendLine((error as any).message);
-    console.error(error);
-    return;
-  }
-
-  outputChannel.appendLine("✅ Execution completed successfully!");
-  outputChannel.appendLine("⚙️ Result:\n");
-  outputChannel.append(result.join("\n"));
-};
-
-const actionFormatCode = (document: vscode.TextDocument) => {
-  if (document.languageId !== "minilogic") return;
-
-  const text = document.getText();
-
-  const lexer = new Lexer(text);
-  const parser = new Parser(lexer.tokenize());
-
-  let formatted: string;
-  try {
-    formatted = Format.format(parser.parse());
-  } catch {
-    vscode.window.showErrorMessage(
-      "❌ Formatter Error: Invalid syntax in MiniLogic code."
-    );
-    return;
-  }
-
-  const fullRange = new vscode.Range(
-    document.positionAt(0),
-    document.positionAt(text.length)
-  );
-  return [vscode.TextEdit.replace(fullRange, formatted)];
-};
-
-const actionCodeUpdate = (
-  event: vscode.TextDocumentChangeEvent | vscode.TextDocument
-) => {
-  const document: vscode.TextDocument = (event as any).document || event;
-  if (document.languageId !== "minilogic") return;
-
-  const lexer = new Lexer(document.getText());
-  const parser = new Parser(lexer.tokenize());
-
-  const ast = parser.parse();
-  const sea = new SemanticErrorAnalyzer(ast);
-  semanticErrors = sea.analyze();
-  variables = sea.getVariableNames();
-  functions = sea.getFunctionNames();
-
-  semanticWarnings = new SemanticWarningAnalyzer(ast).analyze();
-
-  const diagnostics: vscode.Diagnostic[] = [];
-
-  semanticErrors.forEach((error, index) => {
-    const diag = new vscode.Diagnostic(
-      convertRange(error.object.range),
-      error.message,
-      vscode.DiagnosticSeverity.Error
-    );
-    diag.code = `error-${index}`;
-    diag.source = "MiniLogic";
-    diagnostics.push(diag);
-  });
-  semanticErrors.forEach((warning, index) => {
-    const diag = new vscode.Diagnostic(
-      convertRange(warning.object.range),
-      warning.message,
-      vscode.DiagnosticSeverity.Warning
-    );
-    diag.code = `warning-${index}`;
-    diag.source = "MiniLogic";
-    diagnostics.push(diag);
-  });
-
-  diagnosticCollection.set(document.uri, diagnostics);
-};
-
-const actionQuickFix = (
-  document: vscode.TextDocument,
-  range: vscode.Range | vscode.Selection,
-  context: vscode.CodeActionContext
-) => {
-  if (document.languageId !== "minilogic") return;
-
-  const fixes: vscode.CodeAction[] = [];
-
-  const lexer = new Lexer(document.getText());
-  const parser = new Parser(lexer.tokenize());
-
-  const ast = parser.parse();
-  const waringSolver = new SemanticWarningSolver(semanticWarnings);
-  const errorSolver = new SemanticErrorSolver(
-    semanticErrors,
-    variables,
-    functions
-  );
-
-  const fixCode = (basename: string) => {
-    return (solution: CodeFix, index: number) => {
-      const range = convertRange({ start: solution.start, end: solution.end });
-      const fix = new vscode.CodeAction(
-        solution.message,
-        vscode.CodeActionKind.QuickFix
-      );
-      const diag = context.diagnostics.filter(
-        (d) => d.code === `error-${index}`
-      );
-      fix.diagnostics = diag.length > 0 ? [diag[0]] : [];
-      fix.isPreferred = true;
-      fix.edit = new vscode.WorkspaceEdit();
-      if (solution.value === null) {
-        fix.edit.delete(document.uri, range);
-      } else {
-        fix.edit.replace(document.uri, range, solution.value);
-      }
-    };
-  };
-
-  errorSolver.solve().forEach(fixCode("error"));
-  waringSolver.solve().forEach(fixCode("warning"));
-
-  return fixes;
-};
+import { diagnosticCollection } from "./commands/state";
 
 // const actionHoverExpr = (
 //   document: vscode.TextDocument,
@@ -481,127 +300,103 @@ const actionQuickFix = (
 export function activate(context: vscode.ExtensionContext) {
   console.log("🔥 MiniLogic Extension Activated!");
 
-  const runCommand = vscode.commands.registerCommand(
-    "minilogic.runCode",
-    actionRunCode
-  );
+  const changeWatcher = vscode.workspace.onDidChangeTextDocument(update);
+  const loadWatcher = vscode.workspace.onDidOpenTextDocument(update);
+  vscode.workspace.textDocuments.forEach((doc) => update(doc));
 
-  const formatProvider =
-    vscode.languages.registerDocumentFormattingEditProvider("minilogic", {
-      provideDocumentFormattingEdits: actionFormatCode,
-    });
+  const codeActionProvider =
+    // const hoverProvider = vscode.languages.registerHoverProvider("minilogic", {
+    //   provideHover: actionHoverExpr,
+    // });
 
-  const changeWatcher =
-    vscode.workspace.onDidChangeTextDocument(actionCodeUpdate);
-  const loadWatcher = vscode.workspace.onDidOpenTextDocument(actionCodeUpdate);
+    // const autoCompleteProvider = vscode.languages.registerCompletionItemProvider(
+    //   "minilogic",
+    //   {
+    //     provideCompletionItems: actionAutocompleteCode,
+    //   },
+    //   "(",
+    //   ")",
+    //   "[",
+    //   "=",
+    //   " ",
+    //   ",",
+    //   " ",
+    //   "\t",
+    //   "\r",
+    //   "a",
+    //   "b",
+    //   "c",
+    //   "d",
+    //   "e",
+    //   "f",
+    //   "g",
+    //   "h",
+    //   "i",
+    //   "j",
+    //   "k",
+    //   "l",
+    //   "m",
+    //   "n",
+    //   "o",
+    //   "p",
+    //   "q",
+    //   "r",
+    //   "s",
+    //   "t",
+    //   "u",
+    //   "v",
+    //   "w",
+    //   "x",
+    //   "y",
+    //   "z",
+    //   "A",
+    //   "B",
+    //   "C",
+    //   "D",
+    //   "E",
+    //   "F",
+    //   "G",
+    //   "H",
+    //   "I",
+    //   "J",
+    //   "K",
+    //   "L",
+    //   "M",
+    //   "N",
+    //   "O",
+    //   "P",
+    //   "Q",
+    //   "R",
+    //   "S",
+    //   "T",
+    //   "U",
+    //   "V",
+    //   "W",
+    //   "X",
+    //   "Y",
+    //   "Z",
+    //   "0",
+    //   "1",
+    //   "2",
+    //   "3",
+    //   "4",
+    //   "5",
+    //   "6",
+    //   "7",
+    //   "8",
+    //   "9"
+    // );
 
-  vscode.workspace.textDocuments.forEach((doc) => actionCodeUpdate(doc));
-
-  const codeActionProvider = vscode.languages.registerCodeActionsProvider(
-    "minilogic",
-    {
-      provideCodeActions: actionQuickFix,
-    },
-    {
-      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
-    }
-  );
-
-  // const hoverProvider = vscode.languages.registerHoverProvider("minilogic", {
-  //   provideHover: actionHoverExpr,
-  // });
-
-  // const autoCompleteProvider = vscode.languages.registerCompletionItemProvider(
-  //   "minilogic",
-  //   {
-  //     provideCompletionItems: actionAutocompleteCode,
-  //   },
-  //   "(",
-  //   ")",
-  //   "[",
-  //   "=",
-  //   " ",
-  //   ",",
-  //   " ",
-  //   "\t",
-  //   "\r",
-  //   "a",
-  //   "b",
-  //   "c",
-  //   "d",
-  //   "e",
-  //   "f",
-  //   "g",
-  //   "h",
-  //   "i",
-  //   "j",
-  //   "k",
-  //   "l",
-  //   "m",
-  //   "n",
-  //   "o",
-  //   "p",
-  //   "q",
-  //   "r",
-  //   "s",
-  //   "t",
-  //   "u",
-  //   "v",
-  //   "w",
-  //   "x",
-  //   "y",
-  //   "z",
-  //   "A",
-  //   "B",
-  //   "C",
-  //   "D",
-  //   "E",
-  //   "F",
-  //   "G",
-  //   "H",
-  //   "I",
-  //   "J",
-  //   "K",
-  //   "L",
-  //   "M",
-  //   "N",
-  //   "O",
-  //   "P",
-  //   "Q",
-  //   "R",
-  //   "S",
-  //   "T",
-  //   "U",
-  //   "V",
-  //   "W",
-  //   "X",
-  //   "Y",
-  //   "Z",
-  //   "0",
-  //   "1",
-  //   "2",
-  //   "3",
-  //   "4",
-  //   "5",
-  //   "6",
-  //   "7",
-  //   "8",
-  //   "9"
-  // );
-
-  context.subscriptions.push(
-    runCommand,
-    formatProvider,
-    changeWatcher,
-    loadWatcher,
-    codeActionProvider,
-    // hoverProvider,
-    // autoCompleteProvider
-  );
+    context.subscriptions.push(
+      run,
+      format,
+      quickfix,
+      changeWatcher,
+      loadWatcher
+      // hoverProvider,
+      // autoCompleteProvider
+    );
 }
-
-const diagnosticCollection =
-  vscode.languages.createDiagnosticCollection("minilogic");
 
 export function deactivate() {
   diagnosticCollection.clear();

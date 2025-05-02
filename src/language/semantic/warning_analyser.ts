@@ -170,8 +170,7 @@ class SemanticWarningAnalyzer {
       this.functions[stmt.name] = { stmt, count: 0 };
     }
 
-    const unused = this.findUnusedFunctionParameters(
-      [...stmt.parameters, ...stmt.subparameters],
+    const unused = this.findUnusedFunctionParameters(stmt.subparameters,
       stmt.table.map((e) => e.value)
     );
     if (unused.length > 0) {

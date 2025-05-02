@@ -1,5 +1,5 @@
 import { Format } from "../format";
-import { CodeFix, Keywords } from "../lexer";
+import { CodeFix, Keywords, Operators, TokenType } from "../lexer";
 import {
   Expression,
   ExpressionType,
@@ -326,8 +326,7 @@ class SemanticErrorSolver {
 
     const new_table = stmt.table.filter((row, index, self) => {
       return (
-        index ===
-        self.findIndex((r) => r.index.join("") === row.index.join(""))
+        index === self.findIndex((r) => r.index.join("") === row.index.join(""))
       );
     });
 
@@ -362,13 +361,59 @@ class SemanticErrorSolver {
     const stmt = error.object as Statement;
     if (stmt.type !== StatementType.Error) return;
 
-    this.fixes.push({
-      start: stmt.range.start,
-      end: stmt.range.end,
-      message: `Remove token ${stmt.token.value}`,
-      value: null,
-    });
+    if (stmt.expected === null) {
+      this.fixes.push({
+        start: stmt.range.start,
+        end: stmt.range.end,
+        message: `Remove token ${stmt.token.value}`,
+        value: null,
+      });
+    } else {
+      this.fixes.push({
+        start: stmt.range.start,
+        end: stmt.range.end,
+        message: `Replace token ${stmt.token.value} with ${stmt.expected}`,
+        value: this.getExpectedTokenType(stmt.expected),
+      });
+    }
   }
-} 
+
+  private getExpectedTokenType(type: TokenType): string {
+    switch (type) {
+      case TokenType.Identifier:
+        return "A";
+      case TokenType.Operator:
+        return Operators.And;
+      case TokenType.Keyword:
+        return Keywords.Print;
+      case TokenType.BinaryNumber:
+        return "0";
+      case TokenType.BinaryNumberList:
+        return "00";
+      case TokenType.String:
+        return "Hello World!";
+      case TokenType.Equal:
+        return "=";
+      case TokenType.Star:
+        return "*";
+      case TokenType.Comma:
+        return ",";
+      case TokenType.Bar:
+        return "|";
+      case TokenType.LParen:
+        return "(";
+      case TokenType.RParen:
+        return ")";
+      case TokenType.LBracket:
+        return "[";
+      case TokenType.RBracket:
+        return "]";
+      case TokenType.Comment:
+        return "// Comment";
+      default:
+        return "";
+    }
+  }
+}
 
 export { SemanticErrorSolver };

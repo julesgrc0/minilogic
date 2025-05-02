@@ -38,8 +38,8 @@ F3(A, C, B, D) = [
 1110, 0
 1111, 0
 ]
+PRINT("Hello from Minilogic", 1 or A , B)
 
-SHOW(F3(A, C, B, D))
-TABLE(F3)
+TABLE(F(0) or A and not B and C, A or not xor B)
 
 

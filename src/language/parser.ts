@@ -65,6 +65,7 @@ type Statement = (
   | {
       type: StatementType.Error;
       token: Token;
+      expected: TokenType | null;
       message: string;
     }
 ) & {
@@ -109,6 +110,7 @@ type Expression = (
   | {
       type: ExpressionType.Error;
       token: Token;
+      expected: TokenType | null;
       message: string;
     }
 ) & {
@@ -127,6 +129,13 @@ const isStatement = (obj: Statement | Expression): obj is Statement => {
 };
 const isExpression = (obj: Statement | Expression): obj is Expression =>
   !isStatement(obj);
+
+
+class ParserEatError extends Error {
+  public constructor(message: string, public expected: TokenType) {
+    super(message);
+  }
+}
 
 class Parser {
   private index: number = 0;
@@ -152,11 +161,13 @@ class Parser {
       let stmt: Statement;
       try {
         stmt = this.parseStatement();
-      } catch {
+      } catch (error){
+        const err = error as ParserEatError;
         stmt = {
           type: StatementType.Error,
-          message: `Unexpected token: ${this.current.type}`,
+          message: `Expected token ${err.expected}, but got ${this.current.type}`,
           token: this.current,
+          expected: err.expected,
           range: {
             start: this.current.start,
             end: this.current.end,
@@ -176,7 +187,7 @@ class Parser {
     ) {
       return this.next();
     }
-    throw new Error("EAT ERROR");
+    throw new ParserEatError("Unexpected token", type);
   }
 
   private next(): Token {
@@ -227,6 +238,7 @@ class Parser {
           type: StatementType.Error,
           message: `Unexpected token when parsing statement: ${token.type}`,
           token,
+          expected: null,
           range: {
             start: token.start,
             end: token.end,
@@ -473,6 +485,7 @@ class Parser {
           type: ExpressionType.Error,
           token,
           message: `Unexpected token when parsing expression: ${token.type}`,
+          expected: null,
           range: {
             start: token.start,
             end: token.end,

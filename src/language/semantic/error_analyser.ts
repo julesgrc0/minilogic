@@ -127,7 +127,7 @@ class SemanticErrorAnalyzer {
       type,
       message,
       object,
-      target
+      target,
     });
   }
 
@@ -349,7 +349,7 @@ class SemanticErrorAnalyzer {
         this.checkVariableExpression(parent, expr, parameters, builtin);
         break;
       case ExpressionType.FunctionCall:
-        this.checkFunctionCallExpression(parent, expr, parameters, builtin);
+        this.checkFunctionCallExpression(parent, expr, parameters, undefined);
         break;
       case ExpressionType.BuiltinCall:
         this.checkBuiltinCallExpression(parent, expr, parameters, expr.name);
@@ -513,13 +513,11 @@ class SemanticErrorAnalyzer {
     if (builtin == undefined) {
       this.pushError(SemanticErrorType.StringInExpression, [expr.value], expr);
     } else if (!validBuiltins.includes(builtin)) {
-      {
-        this.pushError(
-          SemanticErrorType.BuiltinInvalidParameterType,
-          [builtin, "string"],
-          expr
-        );
-      }
+      this.pushError(
+        SemanticErrorType.BuiltinInvalidParameterType,
+        [builtin, "string"],
+        expr
+      );
     }
   }
 }

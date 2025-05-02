@@ -36,13 +36,14 @@ class SemanticWarningSolver {
     )
       return;
 
+      const value = isStatement(warning.new_object)
+      ? Format.formatStatement(warning.new_object)
+      : Format.formatExpression(warning.new_object)
     this.fixes.push({
-      start: warning.new_object.range.start,
-      end: warning.new_object.range.end,
-      message: `Expression optimization: remove dead code or group logic operations`,
-      value: isStatement(warning.new_object)
-        ? Format.formatStatement(warning.new_object)
-        : Format.formatExpression(warning.new_object),
+      start: warning.object.range.start,
+      end: warning.object.range.end,
+      message: `Optimize expression to : ${value}`,
+      value: value,
     });
   }
 

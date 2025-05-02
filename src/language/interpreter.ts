@@ -37,12 +37,15 @@ class Interpreter {
             this.functions[stmt.name] = stmt;
           }
           break;
-        case StatementType.FunctionTable: {
-          if (this.functions.hasOwnProperty(stmt.name)) {
-            throw new Error(`Function ${stmt.name} already defined`);
+        case StatementType.FunctionTable:
+          {
+            if (this.functions.hasOwnProperty(stmt.name)) {
+              throw new Error(`Function ${stmt.name} already defined`);
+            }
+            this.functions[stmt.name] =
+              this.convertFunctionTableToFunction(stmt);
           }
-          this.functions[stmt.name] = this.convertFunctionTableToFunction(stmt);
-        }
+          break;
         case StatementType.BuiltinCall:
           this.evalBuiltinStatement(stmt);
           break;
@@ -284,6 +287,7 @@ class Interpreter {
     for (const variable of this.getVariableInExpression(expr)) {
       localVariables[variable] = 0;
     }
+    header[0] = Object.keys(localVariables).join(" | ");
 
     const cmbs = getCombinations(Object.keys(localVariables).length);
 
@@ -302,18 +306,35 @@ class Interpreter {
   }
 
   public showTruthTable(expr: Expression | string[][]): string {
-    let table: string[][] = expr as string[][]; 
-    if(!(expr instanceof Array)) {
-      table = this.getTruthTable(expr);
-    }
-    const header = table[0].map((col) => col.toString());
+    const table: string[][] = Array.isArray(expr)
+      ? expr
+      : this.getTruthTable(expr);
 
-    const rows = table
-      .slice(1)
-      .map((row) => row.map((col) => col.toString()).join(" | "))
-      .join("\n");
-    const separator = header.map(() => "---").join(" | ");
-    return `| ${header.join(" | ")} |\n| ${separator} |\n| ${rows} |`;
+    const colCount = table[0].length;
+    const colWidths = Array(colCount).fill(0);
+
+    for (const row of table) {
+      row.forEach((cell, i) => {
+        colWidths[i] = Math.max(colWidths[i], cell.toString().length);
+      });
+    }
+
+    const formatRow = (row: string[]) =>
+      "| " +
+      row.map((cell, i) => cell.toString().padEnd(colWidths[i])).join(" | ") +
+      " |";
+
+    const separatorRow =
+      "| " + colWidths.map((w) => "-".repeat(w)).join(" | ") + " |";
+
+    const [header, ...body] = table;
+    const formattedRows = [
+      formatRow(header),
+      separatorRow,
+      ...body.map(formatRow),
+    ];
+
+    return formattedRows.join("\n");
   }
 
   private showBuiltinExpression(
