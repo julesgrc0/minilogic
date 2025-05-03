@@ -248,7 +248,7 @@ class SemanticErrorAnalyzer {
     }
 
     const expectedLength = Math.pow(stmt.parameters.length, 2);
-    if (stmt.table.length !== expectedLength) {
+    if (stmt.parameters.length !== expectedLength) {
       error = true;
       this.pushError(
         SemanticErrorType.FunctionTableInvalidLength,
@@ -328,11 +328,16 @@ class SemanticErrorAnalyzer {
         }
         this.checkExpression(stmt, stmt.parameters[1], [], stmt.name);
         break;
-      default:
-        {
-          for (const param of stmt.parameters) {
-            this.checkExpression(stmt, param, [], stmt.name);
-          }
+      case Keywords.Print:
+        for (const param of stmt.parameters) {
+          this.checkExpression(stmt, param, [], stmt.name);
+        }
+        break;
+      case Keywords.Graph:
+      case Keywords.Table:
+      case Keywords.Show:
+        for (const param of stmt.parameters) {
+          this.checkExpression(stmt, param, true, stmt.name);
         }
         break;
     }
@@ -341,7 +346,7 @@ class SemanticErrorAnalyzer {
   private checkExpression(
     parent: Statement,
     expr: Expression,
-    parameters: string[] = [],
+    parameters: string[] | boolean = [],
     builtin: Keywords | undefined = undefined
   ) {
     switch (expr.type) {
@@ -376,11 +381,16 @@ class SemanticErrorAnalyzer {
   private checkVariableExpression(
     parent: Statement,
     expr: Expression,
-    parameters: string[],
+    parameters: string[] | boolean,
     builtin: Keywords | undefined
   ) {
     if (expr.type !== ExpressionType.Variable) return;
-
+    if (typeof parameters === "boolean") {
+      if (expr.reference && !this.variables.has(expr.name)) {
+        this.pushError(SemanticErrorType.VariableNotDefined, [expr.name], expr);
+      }
+      return;
+    }
     const isFunction = parameters.length > 0;
     const isBuiltin = builtin !== undefined;
 
@@ -436,7 +446,7 @@ class SemanticErrorAnalyzer {
   private checkFunctionCallExpression(
     parent: Statement,
     expr: Expression,
-    parameters: string[],
+    parameters: string[] | boolean,
     builtin: Keywords | undefined
   ) {
     if (expr.type !== ExpressionType.FunctionCall) return;
@@ -457,7 +467,7 @@ class SemanticErrorAnalyzer {
   private checkBuiltinCallExpression(
     parent: Statement,
     expr: Expression,
-    parameters: string[],
+    parameters: string[] | boolean,
     builtin: Keywords | undefined
   ) {
     if (expr.type !== ExpressionType.BuiltinCall || builtin === undefined) {

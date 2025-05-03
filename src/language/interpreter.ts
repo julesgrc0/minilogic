@@ -72,6 +72,7 @@ class Interpreter {
               })
               .join(" ")
           );
+          this.output.push("");
         }
         break;
       case Keywords.Show:
@@ -90,7 +91,7 @@ class Interpreter {
           this.output.push(
             stmt.parameters
               .map((param) => this.showTruthTable(param))
-              .join("\n")
+              .join("\n\n")
           );
         }
         break;
@@ -170,12 +171,12 @@ class Interpreter {
       throw new Error(`Unexpected expression type: ${expr.type}`);
     }
 
-    if (!this.variables.hasOwnProperty(expr.name)) {
-      throw new Error(`Variable ${expr.name} not defined`);
-    }
-
     if (localVariables.hasOwnProperty(expr.name) && !expr.reference) {
       return localVariables[expr.name];
+    }
+
+    if (!this.variables.hasOwnProperty(expr.name)) {
+      throw new Error(`Variable ${expr.name} not defined`);
     }
 
     if (Object.keys(localVariables).length == 0) {
@@ -262,6 +263,7 @@ class Interpreter {
         return [];
       case ExpressionType.Variable:
         return [expr.name];
+      case ExpressionType.BuiltinCall:
       case ExpressionType.FunctionCall:
         return expr.parameters.flatMap((param) =>
           this.getVariableInExpression(param)
@@ -273,8 +275,6 @@ class Interpreter {
         ];
       case ExpressionType.Unary:
         return this.getVariableInExpression(expr.operand);
-      case ExpressionType.BuiltinCall:
-        return this.getVariableInExpression(expr);
       default:
         throw new Error("Unexpected expression type");
     }
@@ -432,15 +432,25 @@ class Interpreter {
       const terms: Expression[] = [];
 
       for (let i = 0; i < row.index.value.length; i++) {
+        const variable: Expression = {
+          type: ExpressionType.Variable,
+          name: stmt.parameters[i],
+          reference: false,
+          range: RANGE_NOT_SET,
+        };
+
         terms.push({
           type: ExpressionType.Binary,
-          operator: row.index.value[i] == 1 ? Operators.And : Operators.Nand,
-          left: {
-            type: ExpressionType.Variable,
-            name: stmt.parameters[i],
-            reference: false,
-            range: RANGE_NOT_SET,
-          },
+          operator: Operators.And,
+          left:
+            row.index.value[i] === 1
+              ? variable
+              : {
+                  type: ExpressionType.Unary,
+                  operator: Operators.Not,
+                  operand: variable,
+                  range: RANGE_NOT_SET,
+                },
           right: row.value,
           range: RANGE_NOT_SET,
         });
@@ -471,7 +481,7 @@ class Interpreter {
     return {
       type: StatementType.Function,
       name: stmt.name,
-      parameters: stmt.parameters,
+      parameters: [...stmt.parameters, ...stmt.subparameters],
       body,
       range: RANGE_NOT_SET,
     };

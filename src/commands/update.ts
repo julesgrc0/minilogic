@@ -26,7 +26,6 @@ export default (
   });
 
   state.a_warnings.forEach((warning, index) => {
-    console.log(warning.object)
     const diag = new vscode.Diagnostic(
       convertRange(warning.object.range),
       warning.message,
