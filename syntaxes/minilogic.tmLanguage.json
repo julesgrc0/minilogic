@@ -11,7 +11,8 @@
 		{ "include": "#functions" },
 		{ "include": "#variables" },
 		
-		{ "include": "#numbers" }
+		{ "include": "#numbers" },
+    { "include": "#strings" }
 	],
 	"repository": {
 		"comments": {
@@ -73,7 +74,22 @@
 					"match":"\\b[01]\\b"
 				}
 			]
-		}
+		},
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.minilogic",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.minilogic",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    }
 	},
 	"scopeName": "source.mlc"
 }
