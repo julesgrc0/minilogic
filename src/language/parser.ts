@@ -1,3 +1,4 @@
+import { start } from "repl";
 import {
   Lexer,
   BinaryNumber,
@@ -32,7 +33,7 @@ enum ExpressionType {
   Error = "Error",
 }
 
-type FunctionTableBody = { index: BinaryNumber[]; value: Expression }[];
+type FunctionTableBody = { index: { value: BinaryNumber[]; range: Range; }; value: Expression }[];
 
 type Statement = (
   | {
@@ -130,7 +131,6 @@ const isStatement = (obj: Statement | Expression): obj is Statement => {
 const isExpression = (obj: Statement | Expression): obj is Expression =>
   !isStatement(obj);
 
-
 class ParserEatError extends Error {
   public constructor(message: string, public expected: TokenType) {
     super(message);
@@ -161,7 +161,7 @@ class Parser {
       let stmt: Statement;
       try {
         stmt = this.parseStatement();
-      } catch (error){
+      } catch (error) {
         const err = error as ParserEatError;
         stmt = {
           type: StatementType.Error,
@@ -277,13 +277,15 @@ class Parser {
 
   private parseVariable(name: Token): Statement {
     this.eat(TokenType.Equal);
+
+    const value = this.parseExpression();
     return {
       type: StatementType.Variable,
       name: name.value as string,
-      value: this.parseExpression(),
+      value,
       range: {
         start: name.start,
-        end: this.current.end,
+        end: value.range.end,
       },
     };
   }
@@ -316,27 +318,29 @@ class Parser {
     this.current = this.eat(TokenType.Equal);
 
     if (subparameters.length > 0 || this.current.type === TokenType.LBracket) {
+      const table = this.parseFunctionTable();
       return {
         type: StatementType.FunctionTable,
         name: name.value as string,
         parameters,
         subparameters,
-        table: this.parseFunctionTable(),
+        table,
         range: {
           start: name.start,
-          end: this.current.end,
+          end: table.length > 0 ? table[table.length - 1].value.range.end : name.end,
         },
       };
     }
 
+    const body = this.parseExpression();
     return {
       type: StatementType.Function,
       name: name.value as string,
       parameters,
-      body: this.parseExpression(),
+      body,
       range: {
         start: name.start,
-        end: this.current.end,
+        end: body.range.end,
       },
     };
   }
@@ -345,6 +349,7 @@ class Parser {
     this.eat(TokenType.LBracket);
     const table: FunctionTableBody = [];
     while (this.current.type !== TokenType.RBracket) {
+      const start = this.current.start;
       let index: BinaryNumber[] = [];
 
       if (this.current.type === TokenType.BinaryNumberList) {
@@ -354,10 +359,11 @@ class Parser {
         index = [this.current.value as BinaryNumber];
         this.eat(TokenType.BinaryNumber);
       }
+      const end = this.current.end;
 
       this.eat(TokenType.Comma);
       const value = this.parseExpression();
-      table.push({ index, value });
+      table.push({ index: { value: index, range: { start, end } }, value });
     }
 
     this.eat(TokenType.RBracket);
@@ -403,7 +409,9 @@ class Parser {
       this.current.type === TokenType.Operator &&
       this.current.value === Operators.Not
     ) {
+      const start = this.current.start;
       this.eat(TokenType.Operator);
+
       const operand = this.parseUnaryExpression();
 
       return {
@@ -411,7 +419,7 @@ class Parser {
         operator: Operators.Not,
         operand,
         range: {
-          start: this.current.start,
+          start,
           end: operand.range.end,
         },
       };
@@ -430,8 +438,10 @@ class Parser {
         }
 
         let reference = false;
+        let end = name.end;
         if (this.current.type === TokenType.Star) {
           reference = true;
+          end = this.current.end;
           this.eat(TokenType.Star);
         }
 
@@ -441,7 +451,7 @@ class Parser {
           reference,
           range: {
             start: name.start,
-            end: this.current.end,
+            end,
           },
         };
       }

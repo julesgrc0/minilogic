@@ -30,7 +30,7 @@ class Format {
         return `${stmt.name}(${stmt.parameters.join(
           ", "
         )}) = [\n${stmt.table.map((row) => {
-          return `${row.index.join("")}, ${this.formatExpression(row.value)}\n`;
+          return `${row.index.value.join("")}, ${this.formatExpression(row.value)}\n`;
         })}]`;
       case StatementType.BuiltinCall:
         return `${stmt.name}(${stmt.parameters

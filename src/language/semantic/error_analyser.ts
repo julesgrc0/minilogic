@@ -259,7 +259,7 @@ class SemanticErrorAnalyzer {
 
     const indexes = new Set<string>();
     for (const row of stmt.table) {
-      const index = row.index.join("");
+      const index = row.index.value.join("");
       if (indexes.has(index)) {
         error = true;
         this.pushError(

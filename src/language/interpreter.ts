@@ -79,7 +79,7 @@ class Interpreter {
           this.output.push(
             stmt.parameters
               .map((param) => {
-                return this.showExpression(param);
+                return this.showExpression(param, true);
               })
               .join(" ")
           );
@@ -174,7 +174,7 @@ class Interpreter {
       throw new Error(`Variable ${expr.name} not defined`);
     }
 
-    if (localVariables.hasOwnProperty(expr.name)) {
+    if (localVariables.hasOwnProperty(expr.name) && !expr.reference) {
       return localVariables[expr.name];
     }
 
@@ -370,7 +370,7 @@ class Interpreter {
       case ExpressionType.Number:
         return expr.value.toString();
       case ExpressionType.Variable: {
-        if (replace.hasOwnProperty(expr.name)) {
+        if (replace.hasOwnProperty(expr.name) && !expr.reference) {
           return replace[expr.name];
         }
         return expr.name + (expr.reference ? "*" : "");
@@ -431,10 +431,10 @@ class Interpreter {
     for (const row of stmt.table) {
       const terms: Expression[] = [];
 
-      for (let i = 0; i < row.index.length; i++) {
+      for (let i = 0; i < row.index.value.length; i++) {
         terms.push({
           type: ExpressionType.Binary,
-          operator: row.index[i] == 1 ? Operators.And : Operators.Nand,
+          operator: row.index.value[i] == 1 ? Operators.And : Operators.Nand,
           left: {
             type: ExpressionType.Variable,
             name: stmt.parameters[i],

@@ -284,14 +284,14 @@ class SemanticErrorSolver {
     const new_table: FunctionTableBody = cmbs.map((cmb) => {
       const value = stmt.table
         .map((row) => {
-          if (row.index.join("") === cmb.join("")) {
+          if (row.index.value.join("") === cmb.join("")) {
             return row.value;
           }
         })
         .filter((v) => v !== undefined);
 
       return {
-        index: cmb,
+        index: { value: cmb, range: RANGE_NOT_SET },
         value:
           value.length > 0
             ? value[0]
@@ -326,7 +326,7 @@ class SemanticErrorSolver {
 
     const new_table = stmt.table.filter((row, index, self) => {
       return (
-        index === self.findIndex((r) => r.index.join("") === row.index.join(""))
+        index === self.findIndex((r) => r.index.value.join("") === row.index.value.join(""))
       );
     });
 

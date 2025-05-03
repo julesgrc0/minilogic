@@ -100,7 +100,7 @@ type Token = {
 class Lexer {
   private pos = 0;
   private line = 0;
-  private column = 0;
+  private column = -1;
   private currentChar: string | null;
   private tokens: Token[] = [];
 
@@ -199,7 +199,7 @@ class Lexer {
     while (this.currentChar !== null && /\s/.test(this.currentChar)) {
       if (this.currentChar === "\n") {
         this.line++;
-        this.column = 0;
+        this.column = -1;
       } else {
         this.column++;
       }

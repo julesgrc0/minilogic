@@ -390,7 +390,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       run,
       format,
-      quickfix,
+      // quickfix,
       changeWatcher,
       loadWatcher
       // hoverProvider,
