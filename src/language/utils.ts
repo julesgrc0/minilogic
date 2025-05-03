@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { BinaryNumber, Position } from "./lexer";
+import { Expression, ExpressionType } from "./parser";
 
 // CODE FROM: https://github.com/gustf/js-levenshtein/tree/master
 const levenshteinDistance = (a: string, b: string): number => {
@@ -127,6 +128,43 @@ const isRangeSet = (range: { start: Position; end: Position }): boolean => {
   return isPositionSet(range.start) && isPositionSet(range.end);
 };
 
+const expressionEqual = (a: Expression, b: Expression): boolean => {
+  if (a.type !== b.type) return false;
+
+  const bexpr = b as any;
+  switch (a.type) {
+    case ExpressionType.Number:
+      return a.value === bexpr.value;
+    case ExpressionType.String:
+      return a.value === bexpr.value;
+    case ExpressionType.Binary:
+      return (
+        a.operator === bexpr.operator &&
+        expressionEqual(a.left, bexpr.left) &&
+        expressionEqual(a.right, bexpr.right)
+      );
+    case ExpressionType.Unary:
+      return (
+        a.operator === bexpr.operator &&
+        expressionEqual(a.operand, bexpr.operand)
+      );
+    case ExpressionType.BuiltinCall:
+    case ExpressionType.FunctionCall:
+      if (a.name !== bexpr.name) return false;
+      if (a.parameters.length !== bexpr.parameters.length) return false;
+      for (let i = 0; i < a.parameters.length; i++) {
+        if (!expressionEqual(a.parameters[i], bexpr.parameters[i]))
+          return false;
+      }
+      return true;
+    case ExpressionType.Variable:
+      return a.name === bexpr.name && a.reference === bexpr.reference;
+    case ExpressionType.Error:
+      return a.message === bexpr.message;
+    default:
+      return false;
+  }
+};
 const convertPosition = (pos: Position): vscode.Position =>
   new vscode.Position(pos.line, pos.column);
 const convertRange = (range: {
@@ -142,6 +180,7 @@ const convertRange = (range: {
 export {
   levenshteinDistance,
   getCombinations,
+  expressionEqual,
   minPosition,
   maxPosition,
   isPositionSet,

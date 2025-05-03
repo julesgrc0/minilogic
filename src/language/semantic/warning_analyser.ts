@@ -5,6 +5,7 @@ import {
   Statement,
   StatementType,
 } from "../parser";
+import { expressionEqual } from "../utils";
 
 enum SemanticWarningType {
   ExpressionOptimized,
@@ -111,7 +112,7 @@ class SemanticWarningAnalyzer {
     this.updateExpressionCount(stmt.value);
 
     let new_object = this.removeDeadExpression(stmt.value);
-    if (new_object) {
+    if (new_object !== null && !expressionEqual(new_object, stmt.value)) {
       this.pushWarning(
         SemanticWarningType.ExpressionOptimized,
         null,
@@ -145,7 +146,7 @@ class SemanticWarningAnalyzer {
     }
 
     let new_object = this.removeDeadExpression(stmt.body);
-    if (new_object) {
+    if (new_object !== null && !expressionEqual(new_object, stmt.body)) {
       this.pushWarning(
         SemanticWarningType.ExpressionOptimized,
         null,
@@ -189,7 +190,7 @@ class SemanticWarningAnalyzer {
       this.updateExpressionCount(expr.value, true);
 
       let new_object = this.removeDeadExpression(expr.value);
-      if (new_object) {
+      if (new_object !== null && !expressionEqual(new_object, expr.value)) {
         this.pushWarning(
           SemanticWarningType.ExpressionOptimized,
           null,
@@ -265,7 +266,7 @@ class SemanticWarningAnalyzer {
         if (right.type === ExpressionType.Number && right.value === 0)
           return left;
 
-        if (JSON.stringify(left) === JSON.stringify(right)) return left;
+        if (expressionEqual(left, right)) return left;
       }
 
       if (expr.operator === Operators.And) {
@@ -279,7 +280,7 @@ class SemanticWarningAnalyzer {
         if (right.type === ExpressionType.Number && right.value === 1)
           return left;
 
-        if (JSON.stringify(left) === JSON.stringify(right)) return left;
+        if (expressionEqual(left, right)) return left;
       }
 
       return { ...expr, left, right };
