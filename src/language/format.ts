@@ -27,11 +27,19 @@ class Format {
           ", "
         )}) = ${this.formatExpression(stmt.body)}`;
       case StatementType.FunctionTable:
+        const sub =
+          stmt.subparameters.length > 0
+            ? " | " + stmt.subparameters.join(", ")
+            : "";
+        const rows = stmt.table.map((row) => {
+          return `\t${row.index.value.join("")}, ${this.formatExpression(
+            row.value
+          )}\n`;
+        }).join("")
+
         return `${stmt.name}(${stmt.parameters.join(
           ", "
-        )}) = [\n${stmt.table.map((row) => {
-          return `${row.index.value.join("")}, ${this.formatExpression(row.value)}\n`;
-        })}]`;
+        )}${sub}) = [\n${rows}]`;
       case StatementType.BuiltinCall:
         return `${stmt.name}(${stmt.parameters
           .map((param) => this.formatExpression(param))
@@ -48,7 +56,7 @@ class Format {
       case ExpressionType.Number:
         return expr.value.toString();
       case ExpressionType.String:
-        return `"${expr.value}"`;
+        return `"${expr.value.replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
       case ExpressionType.Binary:
         if (
           expr.operator === Operators.And ||

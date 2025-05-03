@@ -1,20 +1,16 @@
 import * as vscode from "vscode";
-import { Lexer } from "../language/lexer";
-import { Parser } from "../language/parser";
 import { Format } from "../language/format";
+import { getOrCreateState } from "./state";
 
 export default vscode.languages.registerDocumentFormattingEditProvider(
   "minilogic",
   {
     provideDocumentFormattingEdits: (document: vscode.TextDocument) => {
       if (document.languageId !== "minilogic") return;
-
-      const text = document.getText();
-      const lexer = new Lexer(text);
-      const parser = new Parser(lexer.tokenize());
+      const { ast, text } = getOrCreateState(document);
 
       try {
-        const formatted = Format.format(parser.parse());
+        const formatted = Format.format(ast);
         const fullRange = new vscode.Range(
           document.positionAt(0),
           document.positionAt(text.length)

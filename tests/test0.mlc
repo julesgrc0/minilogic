@@ -1,9 +1,9 @@
-
 MUX(S | A, B) = [
-    0, A
-    1, B
+	0, A
+	1, B
 ]
-MUX_v2(S, I0, I1) = I0 and not S or I1 and S
 
-PRINT(0 and not 0 or 0 and 0, "Hello world \n\"!")
+MUX_v2(S, I0, I1) = (I0 and not S or I1 and S)
+
+PRINT((0 and not 0 or 0 and 0), "Hello world \n\"!")
 TABLE(MUX(S, A, B), MUX_v2(S, A, B))

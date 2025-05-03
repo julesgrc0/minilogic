@@ -1,4 +1,3 @@
-import { Format } from "./format";
 import { BinaryNumber, Keywords, Operators } from "./lexer";
 import { Expression, ExpressionType, Statement, StatementType } from "./parser";
 import {
