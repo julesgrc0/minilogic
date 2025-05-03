@@ -1,0 +1,8 @@
+E1 = 0
+
+E = E1
+A = 0
+C = A
+
+D = A or not C and C or not not A
+

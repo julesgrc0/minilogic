@@ -11,26 +11,26 @@ import {
 } from "./lexer";
 
 enum StatementType {
-  Variable = "Variable",
-  Function = "Function",
-  FunctionTable = "FunctionTable",
-  BuiltinCall = "BuiltinCall",
-  Comment = "Comment",
-  Error = "Error",
+  Variable = "StatementVariable",
+  Function = "StatementFunction",
+  FunctionTable = "StatementFunctionTable",
+  BuiltinCall = "StatementBuiltinCall",
+  Comment = "StatementComment",
+  Error = "StatementError",
 }
 
 enum ExpressionType {
-  Number = "Number",
-  String = "String",
+  Number = "ExpressionNumber",
+  String = "ExpressionString",
 
-  Binary = "Binary",
-  Unary = "Unary",
+  Binary = "ExpressionBinary",
+  Unary = "ExpressionUnary",
 
-  Variable = "Variable",
-  FunctionCall = "FunctionCall",
-  BuiltinCall = "BuiltinCall",
+  Variable = "ExpressionVariable",
+  FunctionCall = "ExpressionFunctionCall",
+  BuiltinCall = "ExpressionBuiltinCall",
 
-  Error = "Error",
+  Error = "ExpressionError",
 }
 
 type FunctionTableBody = { index: { value: BinaryNumber[]; range: Range; }; value: Expression }[];

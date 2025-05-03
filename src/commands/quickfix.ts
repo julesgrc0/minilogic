@@ -7,7 +7,7 @@ export default vscode.languages.registerCodeActionsProvider(
   {
     provideCodeActions: (
       document: vscode.TextDocument,
-      range: vscode.Range | vscode.Selection,
+      rangedoc: vscode.Range | vscode.Selection,
       context: vscode.CodeActionContext
     ) => {
       if (document.languageId !== "minilogic") return;
@@ -32,6 +32,8 @@ export default vscode.languages.registerCodeActionsProvider(
         fix.diagnostics = [diag];
         fix.isPreferred = true;
         fix.edit = new vscode.WorkspaceEdit();
+
+        console.log(`Range: (${range.start.line};${range.start.character}) <-> (${range.end.line};${range.end.character}): `, document.getText(range))
         if (solution.value === null) {
           fix.edit.delete(document.uri, range);
         } else {

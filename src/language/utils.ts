@@ -167,6 +167,7 @@ const expressionEqual = (a: Expression, b: Expression): boolean => {
 };
 const convertPosition = (pos: Position): vscode.Position =>
   new vscode.Position(pos.line, pos.column);
+
 const convertRange = (range: {
   start: Position;
   end: Position;

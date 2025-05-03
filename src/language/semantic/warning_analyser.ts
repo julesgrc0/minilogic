@@ -117,7 +117,7 @@ class SemanticWarningAnalyzer {
         SemanticWarningType.ExpressionOptimized,
         null,
         stmt,
-        new_object
+        {...stmt, value: new_object }
       );
     }
   }

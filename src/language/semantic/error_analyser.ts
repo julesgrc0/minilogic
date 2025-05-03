@@ -153,11 +153,12 @@ class SemanticErrorAnalyzer {
       );
     }
 
+
+    this.checkExpression(stmt, stmt.value);
+
     if (!error) {
       this.variables.add(stmt.name);
     }
-
-    this.checkExpression(stmt, stmt.value);
   }
 
   private checkFunctionStatement(stmt: Statement) {

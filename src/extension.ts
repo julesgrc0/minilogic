@@ -16,9 +16,9 @@ export function activate(context: vscode.ExtensionContext) {
     const loadWatcher = vscode.workspace.onDidOpenTextDocument(update);
     vscode.workspace.textDocuments.forEach((doc) => update(doc));
   
-    context.subscriptions.push(run, format, changeWatcher, loadWatcher);
+    context.subscriptions.push(run, format, quickfix, changeWatcher, loadWatcher);
   }catch(error){
-    console.error("Error loading MiniLogic extension:", error);
+    console.error("Error during activation:", error);
   }
 }
 

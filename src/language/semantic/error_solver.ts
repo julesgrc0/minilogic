@@ -9,12 +9,7 @@ import {
   Statement,
   StatementType,
 } from "../parser";
-import {
-  getCombinations,
-  levenshteinDistance,
-  POSITION_NOT_SET,
-  RANGE_NOT_SET,
-} from "../utils";
+import { getCombinations, levenshteinDistance, RANGE_NOT_SET } from "../utils";
 import { SemanticError, SemanticErrorType } from "./error_analyser";
 
 class SemanticErrorSolver {
@@ -107,14 +102,15 @@ class SemanticErrorSolver {
         SemanticErrorType.VariableReferenceNotDefined,
       ].includes(error.type) ||
       isStatement(error.object)
-    )
+    ) {
       return;
+    }
 
     const expr = error.object as Expression;
     if (expr.type !== ExpressionType.Variable) return;
 
     const possible_name = this.nearbyName(expr.name, this.variables);
-    if (possible_name) {
+    if (possible_name && possible_name !== expr.name) {
       this.fixes.push({
         start: expr.range.start,
         end: expr.range.end,
@@ -148,8 +144,9 @@ class SemanticErrorSolver {
       start: expr.range.start,
       end: expr.range.end,
       message: `Remove reference ${expr.name}* to variable ${expr.name}`,
-      value: expr.name,
+      value: null,
     });
+    console.log(this.fixes.at(-1));
   }
 
   private createFunctionParameter(error: SemanticError) {
@@ -326,7 +323,10 @@ class SemanticErrorSolver {
 
     const new_table = stmt.table.filter((row, index, self) => {
       return (
-        index === self.findIndex((r) => r.index.value.join("") === row.index.value.join(""))
+        index ===
+        self.findIndex(
+          (r) => r.index.value.join("") === row.index.value.join("")
+        )
       );
     });
 
