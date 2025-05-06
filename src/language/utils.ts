@@ -10,8 +10,8 @@ const levenshteinDistance = (a: string, b: string): number => {
         ? d2 + 1
         : d0 + 1
       : bx === ay
-      ? d1
-      : d1 + 1;
+        ? d1
+        : d1 + 1;
   };
 
   if (a === b) {
@@ -174,7 +174,7 @@ const convertRange = (range: {
 }): vscode.Range => {
   return new vscode.Range(
     convertPosition(range.start),
-    convertPosition(range.end)
+    convertPosition(range.end),
   );
 };
 

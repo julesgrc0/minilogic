@@ -24,21 +24,23 @@ class Format {
         return `${stmt.name} = ${this.formatExpression(stmt.value)}`;
       case StatementType.Function:
         return `${stmt.name}(${stmt.parameters.join(
-          ", "
+          ", ",
         )}) = ${this.formatExpression(stmt.body)}`;
       case StatementType.FunctionTable:
         const sub =
           stmt.subparameters.length > 0
             ? " | " + stmt.subparameters.join(", ")
             : "";
-        const rows = stmt.table.map((row) => {
-          return `\t${row.index.value.join("")}, ${this.formatExpression(
-            row.value
-          )}\n`;
-        }).join("")
+        const rows = stmt.table
+          .map((row) => {
+            return `\t${row.index.value.join("")}, ${this.formatExpression(
+              row.value,
+            )}\n`;
+          })
+          .join("");
 
         return `${stmt.name}(${stmt.parameters.join(
-          ", "
+          ", ",
         )}${sub}) = [\n${rows}]`;
       case StatementType.BuiltinCall:
         return `${stmt.name}(${stmt.parameters

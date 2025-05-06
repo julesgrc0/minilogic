@@ -1,8 +1,14 @@
 import * as vscode from "vscode";
 import { CodeFix, Lexer, Token } from "../language/lexer";
 import { Parser, Statement } from "../language/parser";
-import { SemanticError, SemanticErrorAnalyzer } from "../language/semantic/error_analyser";
-import { SemanticWarning, SemanticWarningAnalyzer } from "../language/semantic/warning_analyser";
+import {
+  SemanticError,
+  SemanticErrorAnalyzer,
+} from "../language/semantic/error_analyser";
+import {
+  SemanticWarning,
+  SemanticWarningAnalyzer,
+} from "../language/semantic/warning_analyser";
 import { SemanticErrorSolver } from "../language/semantic/error_solver";
 import { SemanticWarningSolver } from "../language/semantic/warning_solver";
 
@@ -20,7 +26,7 @@ type DocumentState = {
 
   a_warnings: SemanticWarning[];
   s_warnings: CodeFix[];
-}
+};
 
 export const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("minilogic");
@@ -38,12 +44,15 @@ export const updateState = (document: vscode.TextDocument): DocumentState => {
 
   const sea = new SemanticErrorAnalyzer(ast);
   const a_errors = sea.analyze();
-  const s_errors = new SemanticErrorSolver(a_errors, sea.getVariableNames(), sea.getFunctionNames()).solve()
+  const s_errors = new SemanticErrorSolver(
+    a_errors,
+    sea.getVariableNames(),
+    sea.getFunctionNames(),
+  ).solve();
 
   const saw = new SemanticWarningAnalyzer(ast);
   const a_warnings = saw.analyze();
-  const s_warnings = new SemanticWarningSolver(a_warnings).solve()
-
+  const s_warnings = new SemanticWarningSolver(a_warnings).solve();
 
   stateMap.set(document.uri.toString(), {
     text,
@@ -58,12 +67,14 @@ export const updateState = (document: vscode.TextDocument): DocumentState => {
   });
 
   return stateMap.get(document.uri.toString()) as DocumentState;
-}
+};
 
-export const getOrCreateState = (document: vscode.TextDocument): DocumentState => {
+export const getOrCreateState = (
+  document: vscode.TextDocument,
+): DocumentState => {
   const state = stateMap.get(document.uri.toString());
   if (state) {
     return state;
   }
   return updateState(document);
-}
+};

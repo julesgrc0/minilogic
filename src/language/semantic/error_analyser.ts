@@ -113,7 +113,7 @@ class SemanticErrorAnalyzer {
     type: SemanticErrorType,
     replace: string[] | null,
     object: Statement | Expression,
-    target: Statement | Expression | undefined = undefined
+    target: Statement | Expression | undefined = undefined,
   ): void {
     let message = this.messages[type];
 
@@ -140,7 +140,7 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.VariableAlreadyDeclared,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
 
@@ -149,10 +149,9 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.VariableAmbiguousName,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
-
 
     this.checkExpression(stmt, stmt.value);
 
@@ -170,7 +169,7 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.FunctionAlreadyDeclared,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
 
@@ -179,19 +178,19 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.FunctionAmbiguousName,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
 
     const hasDuplicateParams = stmt.parameters.some(
-      (param, index) => stmt.parameters.indexOf(param) !== index
+      (param, index) => stmt.parameters.indexOf(param) !== index,
     );
     if (hasDuplicateParams) {
       error = true;
       this.pushError(
         SemanticErrorType.FunctionDuplicateParameters,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
 
@@ -211,7 +210,7 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.FunctionAlreadyDeclared,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
 
@@ -220,31 +219,31 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.FunctionAmbiguousName,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
 
     const hasDuplicateParams = stmt.parameters.some(
-      (param, index) => stmt.parameters.indexOf(param) !== index
+      (param, index) => stmt.parameters.indexOf(param) !== index,
     );
     if (hasDuplicateParams) {
       error = true;
       this.pushError(
         SemanticErrorType.FunctionDuplicateParameters,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
 
     const hasDuplicateSubParams = stmt.subparameters.some(
-      (param, index) => stmt.subparameters.indexOf(param) !== index
+      (param, index) => stmt.subparameters.indexOf(param) !== index,
     );
     if (hasDuplicateSubParams) {
       error = true;
       this.pushError(
         SemanticErrorType.FunctionDuplicateSubParameters,
         [stmt.name],
-        stmt
+        stmt,
       );
     }
 
@@ -254,7 +253,7 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.FunctionTableInvalidLength,
         [stmt.name, expectedLength.toString(), stmt.table.length.toString()],
-        stmt
+        stmt,
       );
     }
 
@@ -266,7 +265,7 @@ class SemanticErrorAnalyzer {
         this.pushError(
           SemanticErrorType.FunctionTableDuplicateIndexes,
           [index, stmt.name],
-          stmt
+          stmt,
         );
       }
 
@@ -298,7 +297,7 @@ class SemanticErrorAnalyzer {
           this.pushError(
             SemanticErrorType.BuiltinInvalidParameterLength,
             [stmt.name, "1", stmt.parameters.length.toString()],
-            stmt
+            stmt,
           );
           return;
         }
@@ -307,7 +306,7 @@ class SemanticErrorAnalyzer {
           this.pushError(
             SemanticErrorType.BuiltinInvalidParameterType,
             [stmt.name, "string"],
-            stmt
+            stmt,
           );
         }
         break;
@@ -316,7 +315,7 @@ class SemanticErrorAnalyzer {
           this.pushError(
             SemanticErrorType.BuiltinInvalidParameterLength,
             [stmt.name, "2", stmt.parameters.length.toString()],
-            stmt
+            stmt,
           );
           return;
         }
@@ -324,7 +323,7 @@ class SemanticErrorAnalyzer {
           this.pushError(
             SemanticErrorType.BuiltinInvalidParameterType,
             [stmt.name, "string"],
-            stmt
+            stmt,
           );
         }
         this.checkExpression(stmt, stmt.parameters[1], [], stmt.name);
@@ -348,7 +347,7 @@ class SemanticErrorAnalyzer {
     parent: Statement,
     expr: Expression,
     parameters: string[] | boolean = [],
-    builtin: Keywords | undefined = undefined
+    builtin: Keywords | undefined = undefined,
   ) {
     switch (expr.type) {
       case ExpressionType.Variable:
@@ -383,7 +382,7 @@ class SemanticErrorAnalyzer {
     parent: Statement,
     expr: Expression,
     parameters: string[] | boolean,
-    builtin: Keywords | undefined
+    builtin: Keywords | undefined,
   ) {
     if (expr.type !== ExpressionType.Variable) return;
     if (typeof parameters === "boolean") {
@@ -400,7 +399,7 @@ class SemanticErrorAnalyzer {
         this.pushError(
           SemanticErrorType.VariableReferenceNotDefined,
           [expr.name],
-          expr
+          expr,
         );
       }
 
@@ -409,7 +408,7 @@ class SemanticErrorAnalyzer {
           SemanticErrorType.VariableParameterNotDefined,
           [expr.name],
           parent,
-          expr
+          expr,
         );
       }
       return;
@@ -428,7 +427,7 @@ class SemanticErrorAnalyzer {
           this.pushError(
             SemanticErrorType.VariableReference,
             [expr.name],
-            expr
+            expr,
           );
         }
         return;
@@ -448,7 +447,7 @@ class SemanticErrorAnalyzer {
     parent: Statement,
     expr: Expression,
     parameters: string[] | boolean,
-    builtin: Keywords | undefined
+    builtin: Keywords | undefined,
   ) {
     if (expr.type !== ExpressionType.FunctionCall) return;
 
@@ -456,7 +455,7 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.FunctionAlreadyDeclared,
         [expr.name],
-        expr
+        expr,
       );
     }
 
@@ -469,7 +468,7 @@ class SemanticErrorAnalyzer {
     parent: Statement,
     expr: Expression,
     parameters: string[] | boolean,
-    builtin: Keywords | undefined
+    builtin: Keywords | undefined,
   ) {
     if (expr.type !== ExpressionType.BuiltinCall || builtin === undefined) {
       return;
@@ -490,7 +489,7 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.BuiltinInvalidParameterLength,
         [builtin, "1", expr.parameters.length.toString()],
-        expr
+        expr,
       );
       return;
     }
@@ -500,7 +499,7 @@ class SemanticErrorAnalyzer {
 
   private checkNumberExpression(
     expr: Expression,
-    builtin: Keywords | undefined
+    builtin: Keywords | undefined,
   ) {
     if (expr.type !== ExpressionType.Number) return;
 
@@ -508,14 +507,14 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.BuiltinInvalidParameterType,
         [builtin, "number"],
-        expr
+        expr,
       );
     }
   }
 
   private checkStringExpression(
     expr: Expression,
-    builtin: Keywords | undefined
+    builtin: Keywords | undefined,
   ) {
     if (expr.type !== ExpressionType.String) return;
 
@@ -527,7 +526,7 @@ class SemanticErrorAnalyzer {
       this.pushError(
         SemanticErrorType.BuiltinInvalidParameterType,
         [builtin, "string"],
-        expr
+        expr,
       );
     }
   }

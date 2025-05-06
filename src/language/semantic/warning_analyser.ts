@@ -63,7 +63,7 @@ class SemanticWarningAnalyzer {
         this.pushWarning(
           SemanticWarningType.VariableUnused,
           [variable],
-          this.variables[variable].stmt
+          this.variables[variable].stmt,
         );
       }
     }
@@ -73,7 +73,7 @@ class SemanticWarningAnalyzer {
         this.pushWarning(
           SemanticWarningType.FunctionUnused,
           [func],
-          this.functions[func].stmt
+          this.functions[func].stmt,
         );
       }
     }
@@ -85,7 +85,7 @@ class SemanticWarningAnalyzer {
     type: SemanticWarningType,
     replace: string[] | null,
     object: Statement | Expression,
-    new_object: Statement | Expression | undefined = undefined
+    new_object: Statement | Expression | undefined = undefined,
   ): void {
     let message = this.messages[type];
 
@@ -113,12 +113,10 @@ class SemanticWarningAnalyzer {
 
     let new_object = this.removeDeadExpression(stmt.value);
     if (new_object !== null && !expressionEqual(new_object, stmt.value)) {
-      this.pushWarning(
-        SemanticWarningType.ExpressionOptimized,
-        null,
-        stmt,
-        {...stmt, value: new_object }
-      );
+      this.pushWarning(SemanticWarningType.ExpressionOptimized, null, stmt, {
+        ...stmt,
+        value: new_object,
+      });
     }
   }
 
@@ -141,7 +139,7 @@ class SemanticWarningAnalyzer {
         {
           ...stmt,
           parameters: stmt.parameters.filter((p) => !unused.includes(p)),
-        }
+        },
       );
     }
 
@@ -151,7 +149,7 @@ class SemanticWarningAnalyzer {
         SemanticWarningType.ExpressionOptimized,
         null,
         stmt,
-        new_object
+        new_object,
       );
     }
 
@@ -171,8 +169,9 @@ class SemanticWarningAnalyzer {
       this.functions[stmt.name] = { stmt, count: 0 };
     }
 
-    const unused = this.findUnusedFunctionParameters(stmt.subparameters,
-      stmt.table.map((e) => e.value)
+    const unused = this.findUnusedFunctionParameters(
+      stmt.subparameters,
+      stmt.table.map((e) => e.value),
     );
     if (unused.length > 0) {
       this.pushWarning(
@@ -182,7 +181,7 @@ class SemanticWarningAnalyzer {
         {
           ...stmt,
           parameters: stmt.parameters.filter((p) => !unused.includes(p)),
-        }
+        },
       );
     }
 
@@ -195,7 +194,7 @@ class SemanticWarningAnalyzer {
           SemanticWarningType.ExpressionOptimized,
           null,
           stmt,
-          new_object
+          new_object,
         );
       }
     }
@@ -217,7 +216,7 @@ class SemanticWarningAnalyzer {
 
   private updateExpressionCount(
     expr: Expression,
-    needReference: boolean = false
+    needReference: boolean = false,
   ) {
     switch (expr.type) {
       case ExpressionType.Variable:
@@ -237,7 +236,7 @@ class SemanticWarningAnalyzer {
           this.functions[expr.name].count++;
         }
         expr.parameters.forEach((param) =>
-          this.updateExpressionCount(param, true)
+          this.updateExpressionCount(param, true),
         );
         break;
       case ExpressionType.Binary:
@@ -329,7 +328,7 @@ class SemanticWarningAnalyzer {
       expr.type == ExpressionType.BuiltinCall
     ) {
       let new_params = expr.parameters.map((param) =>
-        this.removeDeadExpression(param)
+        this.removeDeadExpression(param),
       );
 
       if (new_params.every((param) => param == null)) {
@@ -352,7 +351,7 @@ class SemanticWarningAnalyzer {
 
   private findUnusedFunctionParameters(
     parameters: string[],
-    exprs: Expression[]
+    exprs: Expression[],
   ): string[] {
     const usedParams = new Set<string>();
 

@@ -36,9 +36,9 @@ class SemanticWarningSolver {
     )
       return;
 
-      const value = isStatement(warning.new_object)
+    const value = isStatement(warning.new_object)
       ? Format.formatStatement(warning.new_object)
-      : Format.formatExpression(warning.new_object)
+      : Format.formatExpression(warning.new_object);
     this.fixes.push({
       start: warning.object.range.start,
       end: warning.object.range.end,

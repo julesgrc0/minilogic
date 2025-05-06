@@ -8,19 +8,19 @@ export default vscode.languages.registerCodeActionsProvider(
     provideCodeActions: (
       document: vscode.TextDocument,
       rangedoc: vscode.Range | vscode.Selection,
-      context: vscode.CodeActionContext
+      context: vscode.CodeActionContext,
     ) => {
       if (document.languageId !== "minilogic") return;
 
       const fixes: vscode.CodeAction[] = [];
       const state = getOrCreateState(document);
-      
+
       const codeAction = (
         basename: "error" | "warning",
-        diag: vscode.Diagnostic
+        diag: vscode.Diagnostic,
       ): vscode.CodeAction | undefined => {
         const index = parseInt(
-          (diag.code as `${typeof basename}-${number}`).split("-")[1]
+          (diag.code as `${typeof basename}-${number}`).split("-")[1],
         );
         const solutions =
           basename === "error" ? state.s_errors : state.s_warnings;
@@ -33,17 +33,11 @@ export default vscode.languages.registerCodeActionsProvider(
         });
         const fix = new vscode.CodeAction(
           solution.message,
-          vscode.CodeActionKind.QuickFix
+          vscode.CodeActionKind.QuickFix,
         );
         fix.diagnostics = [diag];
         fix.isPreferred = true;
         fix.edit = new vscode.WorkspaceEdit();
-
-        console.log(
-          `Range: (${range.start.line};${range.start.character}|${solution.start.column}) <-> (${range.end.line};${range.end.character}): `,
-          document.getText(range),
-          document.getText(range).length
-        );
 
         if (solution.value === null) {
           fix.edit.delete(document.uri, range);
@@ -74,5 +68,5 @@ export default vscode.languages.registerCodeActionsProvider(
   },
   {
     providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
-  }
+  },
 );

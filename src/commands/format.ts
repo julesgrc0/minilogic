@@ -13,15 +13,15 @@ export default vscode.languages.registerDocumentFormattingEditProvider(
         const formatted = Format.format(ast);
         const fullRange = new vscode.Range(
           document.positionAt(0),
-          document.positionAt(text.length)
+          document.positionAt(text.length),
         );
         return [vscode.TextEdit.replace(fullRange, formatted)];
       } catch {
         vscode.window.showErrorMessage(
-          "❌ Formatter Error: Invalid MiniLogic code."
+          "❌ Formatter Error: Invalid MiniLogic code.",
         );
         return;
       }
     },
-  }
+  },
 );

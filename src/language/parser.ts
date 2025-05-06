@@ -135,7 +135,10 @@ const isExpression = (obj: Statement | Expression): obj is Expression =>
   !isStatement(obj);
 
 class ParserEatError extends Error {
-  public constructor(message: string, public expected: TokenType) {
+  public constructor(
+    message: string,
+    public expected: TokenType,
+  ) {
     super(message);
   }
 }
@@ -513,7 +516,7 @@ class Parser {
 
   private parseFunctionCallExpression(
     name: Token,
-    builtin: boolean = false
+    builtin: boolean = false,
   ): Expression {
     const start = name.start;
 

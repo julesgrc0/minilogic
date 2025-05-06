@@ -151,7 +151,9 @@ class Lexer {
       }
 
       const found = Object.keys(this.symbols).includes(this.currentChar);
-      const value = found ? this.currentChar : `Unexpected character: ${this.currentChar}`;
+      const value = found
+        ? this.currentChar
+        : `Unexpected character: ${this.currentChar}`;
 
       this.advance();
 
@@ -163,7 +165,6 @@ class Lexer {
         start,
         end: this.getPosition(),
       });
-
     }
 
     this.tokens.push({
@@ -196,7 +197,11 @@ class Lexer {
   }
 
   private skipWhitespace() {
-    while (this.currentChar !== null && /\s/.test(this.currentChar) && this.offset < this.input.length) {
+    while (
+      this.currentChar !== null &&
+      /\s/.test(this.currentChar) &&
+      this.offset < this.input.length
+    ) {
       if (this.currentChar === "\n") {
         this.line++;
         this.column = 0;

@@ -10,14 +10,19 @@ import { diagnosticCollection } from "./commands/state";
 export function activate(context: vscode.ExtensionContext) {
   console.log("🔥 MiniLogic Extension Activated!");
 
-  try{
-
+  try {
     const changeWatcher = vscode.workspace.onDidChangeTextDocument(update);
     const loadWatcher = vscode.workspace.onDidOpenTextDocument(update);
     vscode.workspace.textDocuments.forEach((doc) => update(doc));
-  
-    context.subscriptions.push(run, format, quickfix, changeWatcher, loadWatcher);
-  }catch(error){
+
+    context.subscriptions.push(
+      run,
+      format,
+      quickfix,
+      changeWatcher,
+      loadWatcher,
+    );
+  } catch (error) {
     console.error("Error during activation:", error);
   }
 }

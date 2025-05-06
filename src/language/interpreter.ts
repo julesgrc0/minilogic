@@ -69,7 +69,7 @@ class Interpreter {
                 }
                 return this.evalExpression(param).toString();
               })
-              .join(" ")
+              .join(" "),
           );
           this.output.push("");
         }
@@ -81,7 +81,7 @@ class Interpreter {
               .map((param) => {
                 return this.showExpression(param, true);
               })
-              .join(" ")
+              .join(" "),
           );
         }
         break;
@@ -90,7 +90,7 @@ class Interpreter {
           this.output.push(
             stmt.parameters
               .map((param) => this.showTruthTable(param))
-              .join("\n\n")
+              .join("\n\n"),
           );
         }
         break;
@@ -125,7 +125,7 @@ class Interpreter {
 
   private evalUnaryExpression(
     op: Operators,
-    operand: BinaryNumber
+    operand: BinaryNumber,
   ): BinaryNumber {
     switch (op) {
       case Operators.Not:
@@ -138,7 +138,7 @@ class Interpreter {
   private evalBinaryExpression(
     op: Operators,
     left: BinaryNumber,
-    right: BinaryNumber
+    right: BinaryNumber,
   ): BinaryNumber {
     switch (op) {
       case Operators.And:
@@ -164,7 +164,7 @@ class Interpreter {
 
   private evalVariableExpression(
     expr: Expression,
-    localVariables: MLCVariable
+    localVariables: MLCVariable,
   ): BinaryNumber {
     if (expr.type !== ExpressionType.Variable) {
       throw new Error(`Unexpected expression type: ${expr.type}`);
@@ -195,7 +195,7 @@ class Interpreter {
 
   private evalFunctionExpression(
     expr: Expression,
-    parentLocalVariables: MLCVariable
+    parentLocalVariables: MLCVariable,
   ): BinaryNumber {
     if (expr.type !== ExpressionType.FunctionCall) {
       throw new Error(`Unexpected expression type: ${expr.type}`);
@@ -211,7 +211,7 @@ class Interpreter {
     }
     if (func.parameters.length !== expr.parameters.length) {
       throw new Error(
-        `Function ${func.name} expects ${func.parameters.length} parameters, got ${expr.parameters.length}`
+        `Function ${func.name} expects ${func.parameters.length} parameters, got ${expr.parameters.length}`,
       );
     }
 
@@ -219,7 +219,7 @@ class Interpreter {
     for (let i = 0; i < func.parameters.length; i++) {
       localVariables[func.parameters[i]] = this.evalExpression(
         expr.parameters[i],
-        parentLocalVariables
+        parentLocalVariables,
       );
     }
 
@@ -228,7 +228,7 @@ class Interpreter {
 
   private evalExpression(
     expr: Expression,
-    localVariables: MLCVariable = {}
+    localVariables: MLCVariable = {},
   ): BinaryNumber {
     switch (expr.type) {
       case ExpressionType.Number:
@@ -249,7 +249,7 @@ class Interpreter {
       case ExpressionType.BuiltinCall:
         return this.evalExpression(
           this.evalBuiltinExpression(expr),
-          localVariables
+          localVariables,
         );
       default:
         throw new Error("Unexpected expression type");
@@ -265,7 +265,7 @@ class Interpreter {
       case ExpressionType.BuiltinCall:
       case ExpressionType.FunctionCall:
         return expr.parameters.flatMap((param) =>
-          this.getVariableInExpression(param)
+          this.getVariableInExpression(param),
         );
       case ExpressionType.Binary:
         return [
@@ -339,16 +339,16 @@ class Interpreter {
   private showBuiltinExpression(
     expr: Expression & {
       type: ExpressionType.BuiltinCall;
-    }
+    },
   ): string {
     switch (expr.name) {
       case Keywords.ToNand:
         return this.showExpression(
-          this.convertExpressionToLogicGate(expr, Operators.Nand)
+          this.convertExpressionToLogicGate(expr, Operators.Nand),
         );
       case Keywords.ToNor:
         return this.showExpression(
-          this.convertExpressionToLogicGate(expr, Operators.Nor)
+          this.convertExpressionToLogicGate(expr, Operators.Nor),
         );
       case Keywords.SolvePOS:
       case Keywords.SolveSOP:
@@ -362,7 +362,7 @@ class Interpreter {
   public showExpression(
     expr: Expression,
     inlineFunctions: boolean = false,
-    replace: Record<string, string> = {}
+    replace: Record<string, string> = {},
   ): string {
     switch (expr.type) {
       case ExpressionType.String:
@@ -376,7 +376,7 @@ class Interpreter {
       }
       case ExpressionType.FunctionCall: {
         const params = expr.parameters.map((param) =>
-          this.showExpression(param, inlineFunctions, replace)
+          this.showExpression(param, inlineFunctions, replace),
         );
         const str = `${expr.name}(${params.join(", ")})`;
         if (inlineFunctions) {
@@ -399,7 +399,7 @@ class Interpreter {
         return `${expr.operator} ${this.showExpression(
           expr.operand,
           inlineFunctions,
-          replace
+          replace,
         )}`;
       case ExpressionType.BuiltinCall: {
         switch (expr.name) {
@@ -408,10 +408,10 @@ class Interpreter {
           case Keywords.SolvePOS:
           case Keywords.SolveSOP:
             const params = expr.parameters.map((param) =>
-              this.showExpression(param, inlineFunctions, replace)
+              this.showExpression(param, inlineFunctions, replace),
             );
             return `<${expr.name}>(${params.join(
-              ", "
+              ", ",
             )}) = ${this.showBuiltinExpression(expr)}`;
           default:
             throw new Error(`Unexpected builtin expression: ${expr.name}`);
@@ -423,7 +423,7 @@ class Interpreter {
   }
 
   public convertFunctionTableToFunction(
-    stmt: Statement & { type: StatementType.FunctionTable }
+    stmt: Statement & { type: StatementType.FunctionTable },
   ): Statement & { type: StatementType.Function } {
     const minterms: Expression[] = [];
 
@@ -462,7 +462,7 @@ class Interpreter {
           left: a,
           right: b,
           range: RANGE_NOT_SET,
-        }))
+        })),
       );
     }
 
@@ -488,7 +488,7 @@ class Interpreter {
 
   public convertExpressionToLogicGate(
     expr: Expression,
-    operator: Operators
+    operator: Operators,
   ): Expression {
     const logicGate = (a: Expression, b: Expression): Expression => ({
       type: ExpressionType.Binary,
@@ -546,7 +546,7 @@ class Interpreter {
             if (operator == Operators.Nor) {
               const a = logicGate(
                 logicGate(left, left),
-                logicGate(right, right)
+                logicGate(right, right),
               );
               return logicGate(a, a);
             }
@@ -556,7 +556,7 @@ class Interpreter {
             if (operator == Operators.Nand) {
               const a = logicGate(
                 logicGate(left, left),
-                logicGate(right, right)
+                logicGate(right, right),
               );
               return logicGate(a, a);
             }
@@ -573,7 +573,7 @@ class Interpreter {
         return {
           ...expr,
           parameters: expr.parameters.map((arg) =>
-            this.convertExpressionToLogicGate(arg, operator)
+            this.convertExpressionToLogicGate(arg, operator),
           ),
         };
       default:

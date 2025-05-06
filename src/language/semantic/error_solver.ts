@@ -18,7 +18,7 @@ class SemanticErrorSolver {
   public constructor(
     private errors: SemanticError[],
     private variables: string[],
-    private functions: string[]
+    private functions: string[],
   ) {}
 
   public solve() {
@@ -139,7 +139,7 @@ class SemanticErrorSolver {
 
     const expr = error.object as Expression;
     if (expr.type !== ExpressionType.Variable) return;
-    console.log(expr);
+
     this.fixes.push({
       start: expr.range.start,
       end: expr.range.end,
@@ -324,7 +324,7 @@ class SemanticErrorSolver {
       return (
         index ===
         self.findIndex(
-          (r) => r.index.value.join("") === row.index.value.join("")
+          (r) => r.index.value.join("") === row.index.value.join(""),
         )
       );
     });
