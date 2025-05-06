@@ -1,0 +1,17 @@
+
+
+ANY_OP(OP_1, OP_2 | A, A_n, B, B_n, C, C_n) = [
+	00, (A xor A_n) and (B xor B_n) and (C xor C_n)
+	01, (A xor A_n) and (B xor B_n) or (C xor C_n)
+	10, (A xor A_n) or (B xor B_n) and (C xor C_n)
+	11, (A xor A_n) or (B xor B_n) or (C xor C_n)
+]
+
+TABLE(ANY_OP(OP_1, OP_2, A, A_n, B, B_n, C, C_n))
+
+MUX(S | A, B) = [
+	0, A
+	1, B
+]
+
+TABLE(MUX(S, A, B))

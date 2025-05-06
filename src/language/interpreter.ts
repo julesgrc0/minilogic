@@ -92,6 +92,7 @@ class Interpreter {
               .map((param) => this.showTruthTable(param))
               .join("\n\n"),
           );
+          this.output.push("");
         }
         break;
       case Keywords.Graph:
@@ -326,11 +327,14 @@ class Interpreter {
     const separatorRow =
       "| " + colWidths.map((w) => "-".repeat(w)).join(" | ") + " |";
 
+    const bottomLine = separatorRow.split("").map(_ => "-").join("")
+
     const [header, ...body] = table;
     const formattedRows = [
       formatRow(header),
       separatorRow,
       ...body.map(formatRow),
+      bottomLine,
     ];
 
     return formattedRows.join("\n");

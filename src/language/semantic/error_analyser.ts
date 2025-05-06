@@ -247,8 +247,9 @@ class SemanticErrorAnalyzer {
       );
     }
 
-    const expectedLength = Math.pow(stmt.parameters.length, 2);
-    if (stmt.parameters.length !== expectedLength) {
+    const expectedLength = Math.pow(2, stmt.parameters.length);
+    console.log(stmt.table.length, expectedLength);
+    if (stmt.table.length !== expectedLength) {
       error = true;
       this.pushError(
         SemanticErrorType.FunctionTableInvalidLength,
