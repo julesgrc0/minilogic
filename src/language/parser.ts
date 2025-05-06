@@ -33,7 +33,10 @@ enum ExpressionType {
   Error = "ExpressionError",
 }
 
-type FunctionTableBody = { index: { value: BinaryNumber[]; range: Range; }; value: Expression }[];
+type FunctionTableBody = {
+  index: { value: BinaryNumber[]; range: Range };
+  value: Expression;
+}[];
 
 type Statement = (
   | {
@@ -327,7 +330,10 @@ class Parser {
         table,
         range: {
           start: name.start,
-          end: table.length > 0 ? table[table.length - 1].value.range.end : name.end,
+          end:
+            table.length > 0
+              ? table[table.length - 1].value.range.end
+              : name.end,
         },
       };
     }

@@ -139,14 +139,13 @@ class SemanticErrorSolver {
 
     const expr = error.object as Expression;
     if (expr.type !== ExpressionType.Variable) return;
-
+    console.log(expr);
     this.fixes.push({
       start: expr.range.start,
       end: expr.range.end,
       message: `Remove reference ${expr.name}* to variable ${expr.name}`,
-      value: null,
+      value: expr.name,
     });
-    console.log(this.fixes.at(-1));
   }
 
   private createFunctionParameter(error: SemanticError) {

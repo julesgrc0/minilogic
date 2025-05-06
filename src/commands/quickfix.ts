@@ -13,12 +13,18 @@ export default vscode.languages.registerCodeActionsProvider(
       if (document.languageId !== "minilogic") return;
 
       const fixes: vscode.CodeAction[] = [];
-      const state = getOrCreateState  (document);
-
-      const codeAction = (basename: "error" | "warning", diag: vscode.Diagnostic): vscode.CodeAction | undefined => {
-        const index = parseInt((diag.code as `${typeof basename}-${number}`).split("-")[1])
-        const solutions = (basename === "error" ? state.s_errors : state.s_warnings);
-        if(index >= solutions.length) return;
+      const state = getOrCreateState(document);
+      
+      const codeAction = (
+        basename: "error" | "warning",
+        diag: vscode.Diagnostic
+      ): vscode.CodeAction | undefined => {
+        const index = parseInt(
+          (diag.code as `${typeof basename}-${number}`).split("-")[1]
+        );
+        const solutions =
+          basename === "error" ? state.s_errors : state.s_warnings;
+        if (index >= solutions.length) return;
 
         const solution = solutions[index];
         const range = convertRange({
@@ -33,7 +39,12 @@ export default vscode.languages.registerCodeActionsProvider(
         fix.isPreferred = true;
         fix.edit = new vscode.WorkspaceEdit();
 
-        console.log(`Range: (${range.start.line};${range.start.character}) <-> (${range.end.line};${range.end.character}): `, document.getText(range))
+        console.log(
+          `Range: (${range.start.line};${range.start.character}|${solution.start.column}) <-> (${range.end.line};${range.end.character}): `,
+          document.getText(range),
+          document.getText(range).length
+        );
+
         if (solution.value === null) {
           fix.edit.delete(document.uri, range);
         } else {
@@ -43,10 +54,16 @@ export default vscode.languages.registerCodeActionsProvider(
       };
 
       for (const diag of context.diagnostics) {
-        if(diag.severity === vscode.DiagnosticSeverity.Error || diag.severity === vscode.DiagnosticSeverity.Warning) {
-          const basename = diag.severity === vscode.DiagnosticSeverity.Error ? "error" : "warning";
+        if (
+          diag.severity === vscode.DiagnosticSeverity.Error ||
+          diag.severity === vscode.DiagnosticSeverity.Warning
+        ) {
+          const basename =
+            diag.severity === vscode.DiagnosticSeverity.Error
+              ? "error"
+              : "warning";
           const result = codeAction(basename, diag);
-          if(result) {
+          if (result) {
             fixes.push(result);
           }
         }

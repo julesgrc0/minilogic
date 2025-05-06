@@ -98,9 +98,9 @@ type Token = {
     }
 );
 class Lexer {
-  private pos = 0;
+  private offset = 0;
   private line = 0;
-  private column = -1;
+  private column = 0;
   private currentChar: string | null;
   private tokens: Token[] = [];
 
@@ -118,7 +118,7 @@ class Lexer {
   };
 
   public constructor(private input: string) {
-    this.currentChar = this.input[this.pos] ?? null;
+    this.currentChar = this.input[this.offset] ?? null;
   }
 
   public tokenize(): Token[] {
@@ -151,19 +151,19 @@ class Lexer {
       }
 
       const found = Object.keys(this.symbols).includes(this.currentChar);
+      const value = found ? this.currentChar : `Unexpected character: ${this.currentChar}`;
+
+      this.advance();
 
       this.tokens.push({
         type: found
-          ? this.symbols[this.currentChar as keyof typeof this.symbols]
+          ? this.symbols[value as keyof typeof this.symbols]
           : TokenType.Error,
-        value: found
-          ? this.currentChar
-          : `Unexpected character: ${this.currentChar}`,
+        value,
         start,
-        end: start,
+        end: this.getPosition(),
       });
 
-      this.advance();
     }
 
     this.tokens.push({
@@ -196,14 +196,15 @@ class Lexer {
   }
 
   private skipWhitespace() {
-    while (this.currentChar !== null && /\s/.test(this.currentChar)) {
+    while (this.currentChar !== null && /\s/.test(this.currentChar) && this.offset < this.input.length) {
       if (this.currentChar === "\n") {
         this.line++;
-        this.column = -1;
+        this.column = 0;
       } else {
         this.column++;
       }
-      this.advance();
+      this.offset++;
+      this.currentChar = this.input[this.offset] ?? null;
     }
   }
 
@@ -215,27 +216,28 @@ class Lexer {
       value += this.currentChar;
       this.advance();
     }
+    const end = this.getPosition();
 
     if (this.keywords.has(value as Keywords)) {
       return {
         type: TokenType.Keyword,
         value: value as Keywords,
         start,
-        end: this.getPosition(),
+        end,
       };
     } else if (this.operators.has(value as Operators)) {
       return {
         type: TokenType.Operator,
         value: value as Operators,
         start,
-        end: this.getPosition(),
+        end,
       };
     } else {
       return {
         type: TokenType.Identifier,
         value,
         start,
-        end: this.getPosition(),
+        end,
       };
     }
   }
@@ -301,13 +303,13 @@ class Lexer {
   }
 
   private advance() {
-    this.pos++;
+    this.offset++;
     this.column++;
-    this.currentChar = this.input[this.pos] ?? null;
+    this.currentChar = this.input[this.offset] ?? null;
   }
 
   private getPosition(): Position {
-    return { line: this.line, column: this.column, offset: this.pos };
+    return { line: this.line, column: this.column, offset: this.offset };
   }
 }
 
