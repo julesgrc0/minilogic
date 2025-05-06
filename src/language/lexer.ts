@@ -58,6 +58,7 @@ enum Keywords {
 
   Export = "EXPORT",
   Import = "IMPORT",
+  Input = "INPUT",
 
   ToNand = "TO_NAND",
   ToNor = "TO_NOR",

@@ -34,6 +34,27 @@
         ],
         "description": "Create a GRAPH statement"
     },
+    "MiniLogic: IMPORT Statement": {
+        "prefix": "IMPORT",
+        "body": [
+            "IMPORT($1)"
+        ],
+        "description": "Create a PRINT statement"
+    },
+    "MiniLogic: EXPORT Statement": {
+        "prefix": "EXPORT",
+        "body": [
+            "EXPORT($1)"
+        ],
+        "description": "Create a PRINT statement"
+    },
+    "MiniLogic: INPUT Statement": {
+        "prefix": "INPUT",
+        "body": [
+            "INPUT($1)"
+        ],
+        "description": "Create a PRINT statement"
+    },
     "MiniLogic: Variable Reference": {
         "prefix": "ref",
         "body": [

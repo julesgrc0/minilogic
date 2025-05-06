@@ -1,4 +1,7 @@
 
+A = INPUT("Hello World")
+
+PRINT(A)
 
 ANY_OP(OP_1, OP_2 | A, A_n, B, B_n, C, C_n) = [
 	00, (A xor A_n) and (B xor B_n) and (C xor C_n)

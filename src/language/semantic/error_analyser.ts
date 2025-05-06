@@ -248,7 +248,7 @@ class SemanticErrorAnalyzer {
     }
 
     const expectedLength = Math.pow(2, stmt.parameters.length);
-    console.log(stmt.table.length, expectedLength);
+
     if (stmt.table.length !== expectedLength) {
       error = true;
       this.pushError(
@@ -286,6 +286,7 @@ class SemanticErrorAnalyzer {
       Keywords.ToNor,
       Keywords.SolvePOS,
       Keywords.SolveSOP,
+      Keywords.Input,
     ];
     if (invalidBuiltins.includes(stmt.name)) {
       this.pushError(SemanticErrorType.BuiltinInvalidUsage, [stmt.name], stmt);
@@ -293,6 +294,7 @@ class SemanticErrorAnalyzer {
     }
 
     switch (stmt.name) {
+      case Keywords.Input:
       case Keywords.Import:
         if (stmt.parameters.length !== 1) {
           this.pushError(
@@ -480,6 +482,7 @@ class SemanticErrorAnalyzer {
       Keywords.ToNor,
       Keywords.SolvePOS,
       Keywords.SolveSOP,
+      Keywords.Input,
     ];
     if (!validBuiltins.includes(builtin)) {
       this.pushError(SemanticErrorType.BuiltinInvalidUsage, [builtin], expr);
@@ -519,7 +522,12 @@ class SemanticErrorAnalyzer {
   ) {
     if (expr.type !== ExpressionType.String) return;
 
-    const validBuiltins = [Keywords.Import, Keywords.Export, Keywords.Print];
+    const validBuiltins = [
+      Keywords.Import,
+      Keywords.Export,
+      Keywords.Print,
+      Keywords.Input,
+    ];
 
     if (builtin == undefined) {
       this.pushError(SemanticErrorType.StringInExpression, [expr.value], expr);

@@ -15,9 +15,12 @@ class Interpreter {
   private functions: MLCFunction = {};
   private output: string[] = [];
 
-  public constructor(private program: Statement[]) {}
+  public constructor(
+    private program: Statement[],
+    private inputFunction: (message: string) => Promise<BinaryNumber>,
+  ) {}
 
-  public execute(): string[] {
+  public async execute(): Promise<string[]> {
     for (const stmt of this.program) {
       switch (stmt.type) {
         case StatementType.Variable:
@@ -25,7 +28,7 @@ class Interpreter {
             if (this.variables.hasOwnProperty(stmt.name)) {
               throw new Error(`Variable ${stmt.name} already defined`);
             }
-            this.variables[stmt.name] = this.evalExpression(stmt.value);
+            this.variables[stmt.name] = await this.evalExpression(stmt.value);
           }
           break;
         case StatementType.Function:
@@ -46,14 +49,14 @@ class Interpreter {
           }
           break;
         case StatementType.BuiltinCall:
-          this.evalBuiltinStatement(stmt);
+          await this.evalBuiltinStatement(stmt);
           break;
       }
     }
     return this.output;
   }
 
-  private evalBuiltinStatement(stmt: Statement): void {
+  private async evalBuiltinStatement(stmt: Statement): Promise<void> {
     if (stmt.type !== StatementType.BuiltinCall) {
       throw new Error(`Unexpected statement type: ${stmt.type}`);
     }
@@ -61,16 +64,15 @@ class Interpreter {
     switch (stmt.name) {
       case Keywords.Print:
         {
-          this.output.push(
-            stmt.parameters
-              .map((param) => {
-                if (param.type == ExpressionType.String) {
-                  return param.value;
-                }
-                return this.evalExpression(param).toString();
-              })
-              .join(" "),
-          );
+          const promises = stmt.parameters.map(async (param) => {
+            if (param.type == ExpressionType.String) {
+              return param.value;
+            }
+            return (await this.evalExpression(param)).toString();
+          });
+          const resolvedValues = await Promise.all(promises);
+
+          this.output.push(resolvedValues.join(" "));
           this.output.push("");
         }
         break;
@@ -87,11 +89,12 @@ class Interpreter {
         break;
       case Keywords.Table:
         {
-          this.output.push(
-            stmt.parameters
-              .map((param) => this.showTruthTable(param))
-              .join("\n\n"),
+          const promises = stmt.parameters.map(
+            async (param) => await this.showTruthTable(param),
           );
+          const resolvedValues = await Promise.all(promises);
+
+          this.output.push(resolvedValues.join(" "));
           this.output.push("");
         }
         break;
@@ -107,7 +110,7 @@ class Interpreter {
     }
   }
 
-  private evalBuiltinExpression(expr: Expression): Expression {
+  private async evalBuiltinExpression(expr: Expression): Promise<Expression> {
     if (expr.type !== ExpressionType.BuiltinCall) {
       throw new Error(`Unexpected expression type: ${expr.type}`);
     }
@@ -119,6 +122,28 @@ class Interpreter {
       case Keywords.ToNand:
       case Keywords.ToNor:
         return expr;
+      case Keywords.Input: {
+        if (expr.parameters.length !== 1)
+          throw new Error(
+            `Input expects 1 parameter, got ${expr.parameters.length}`,
+          );
+        if (expr.parameters[0].type !== ExpressionType.String)
+          throw new Error(
+            `Input expects a string, got ${expr.parameters[0].type}`,
+          );
+
+        const message = expr.parameters[0].value;
+
+        try {
+          return {
+            type: ExpressionType.Number,
+            value: await this.inputFunction(message),
+            range: RANGE_NOT_SET,
+          };
+        } catch {
+          throw new Error("Unable to create readline interface");
+        }
+      }
       default:
         throw new Error(`Unexpected builtin expression: ${expr.name}`);
     }
@@ -194,10 +219,10 @@ class Interpreter {
     }
   }
 
-  private evalFunctionExpression(
+  private async evalFunctionExpression(
     expr: Expression,
     parentLocalVariables: MLCVariable,
-  ): BinaryNumber {
+  ): Promise<BinaryNumber> {
     if (expr.type !== ExpressionType.FunctionCall) {
       throw new Error(`Unexpected expression type: ${expr.type}`);
     }
@@ -218,38 +243,38 @@ class Interpreter {
 
     const localVariables: MLCVariable = {};
     for (let i = 0; i < func.parameters.length; i++) {
-      localVariables[func.parameters[i]] = this.evalExpression(
+      localVariables[func.parameters[i]] = await this.evalExpression(
         expr.parameters[i],
         parentLocalVariables,
       );
     }
 
-    return this.evalExpression(func.body, localVariables);
+    return await this.evalExpression(func.body, localVariables);
   }
 
-  private evalExpression(
+  private async evalExpression(
     expr: Expression,
     localVariables: MLCVariable = {},
-  ): BinaryNumber {
+  ): Promise<BinaryNumber> {
     switch (expr.type) {
       case ExpressionType.Number:
         return expr.value;
       case ExpressionType.Variable:
         return this.evalVariableExpression(expr, localVariables);
       case ExpressionType.FunctionCall:
-        return this.evalFunctionExpression(expr, localVariables);
+        return await this.evalFunctionExpression(expr, localVariables);
       case ExpressionType.Binary: {
-        const left = this.evalExpression(expr.left, localVariables);
-        const right = this.evalExpression(expr.right, localVariables);
+        const left = await this.evalExpression(expr.left, localVariables);
+        const right = await this.evalExpression(expr.right, localVariables);
         return this.evalBinaryExpression(expr.operator, left, right);
       }
       case ExpressionType.Unary: {
-        const operand = this.evalExpression(expr.operand, localVariables);
+        const operand = await this.evalExpression(expr.operand, localVariables);
         return this.evalUnaryExpression(expr.operator, operand);
       }
       case ExpressionType.BuiltinCall:
-        return this.evalExpression(
-          this.evalBuiltinExpression(expr),
+        return await this.evalExpression(
+          await this.evalBuiltinExpression(expr),
           localVariables,
         );
       default:
@@ -280,7 +305,7 @@ class Interpreter {
     }
   }
 
-  public getTruthTable(expr: Expression) {
+  public async getTruthTable(expr: Expression): Promise<string[][]> {
     const header = ["", this.showExpression(expr)];
 
     const localVariables: MLCVariable = {};
@@ -298,17 +323,17 @@ class Interpreter {
       });
       rows.push([
         cmb.join(""),
-        this.evalExpression(expr, localVariables).toString(),
+        (await this.evalExpression(expr, localVariables)).toString(),
       ]);
     }
 
     return [header, ...rows];
   }
 
-  public showTruthTable(expr: Expression | string[][]): string {
+  public async showTruthTable(expr: Expression | string[][]): Promise<string> {
     const table: string[][] = Array.isArray(expr)
       ? expr
-      : this.getTruthTable(expr);
+      : await this.getTruthTable(expr);
 
     const colCount = table[0].length;
     const colWidths = Array(colCount).fill(0);
@@ -327,7 +352,10 @@ class Interpreter {
     const separatorRow =
       "| " + colWidths.map((w) => "-".repeat(w)).join(" | ") + " |";
 
-    const bottomLine = separatorRow.split("").map(_ => "-").join("")
+    const bottomLine = separatorRow
+      .split("")
+      .map((_) => "-")
+      .join("");
 
     const [header, ...body] = table;
     const formattedRows = [
