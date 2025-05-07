@@ -4,6 +4,7 @@ import run from "./commands/run";
 import format from "./commands/format";
 import update from "./commands/update";
 import quickfix from "./commands/quickfix";
+import hover from "./commands/hover";
 
 import { diagnosticCollection } from "./commands/state";
 
@@ -19,6 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
       run,
       format,
       quickfix,
+      hover,
       changeWatcher,
       loadWatcher,
     );

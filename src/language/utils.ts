@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
-import { BinaryNumber, Position } from "./lexer";
-import { Expression, ExpressionType } from "./parser";
+import { BinaryNumber, Position, Range } from "./lexer";
+import { Expression, ExpressionType, Statement, StatementType } from "./parser";
+import update from "../commands/update";
 
 // CODE FROM: https://github.com/gustf/js-levenshtein/tree/master
 const levenshteinDistance = (a: string, b: string): number => {
@@ -177,6 +178,31 @@ const convertRange = (range: {
     convertPosition(range.end),
   );
 };
+const positionDistance = (a: Position, b: Position): number => {
+  return Math.sqrt(
+    Math.pow(a.line - b.line, 2) + Math.pow(a.column - b.column, 2),
+  );
+};
+
+const findNearestToPosition = (
+  position: Position,
+  ast: Statement[],
+): Statement | null => {
+  let nearest: Statement | null = null;
+  let dist = Number.MAX_VALUE;
+
+  for (const stmt of ast) {
+    let a = positionDistance(position, stmt.range.start);
+    let b = positionDistance(position, stmt.range.end);
+
+    if (a < dist || b < dist) {
+      dist = Math.min(a, b);
+      nearest = stmt;
+    }
+  }
+
+  return nearest;
+};
 
 export {
   levenshteinDistance,
@@ -187,6 +213,8 @@ export {
   isPositionSet,
   convertPosition,
   isRangeSet,
+  positionDistance,
+  findNearestToPosition,
   convertRange,
   POSITION_NOT_SET,
   RANGE_NOT_SET,

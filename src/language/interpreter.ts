@@ -11,8 +11,8 @@ type MLCVariable = Record<string, BinaryNumber>;
 type MLCFunction = Record<string, Statement & { type: StatementType.Function }>;
 
 class Interpreter {
-  private variables: MLCVariable = {};
-  private functions: MLCFunction = {};
+  public variables: MLCVariable = {};
+  public functions: MLCFunction = {};
   private output: string[] = [];
 
   public constructor(
