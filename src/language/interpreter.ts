@@ -386,6 +386,7 @@ class Interpreter {
       case Keywords.SolveSOP:
         // TODO: Implement SOLVE
         return this.showExpression(expr.parameters[0]);
+
       default:
         throw new Error(`Unexpected builtin expression: ${expr.name}`);
     }
@@ -404,18 +405,26 @@ class Interpreter {
         if (replace.hasOwnProperty(expr.name) && !expr.reference) {
           return replace[expr.name];
         }
-        return expr.name + (expr.reference ? "*" : "");
+        const value =
+          expr.reference && this.variables.hasOwnProperty(expr.name)
+            ? `* = ${this.variables[expr.name]}`
+            : "";
+        return expr.name + value;
       }
       case ExpressionType.FunctionCall: {
-        const params = expr.parameters.map((param) =>
+        let params = expr.parameters.map((param) =>
           this.showExpression(param, inlineFunctions, replace),
         );
+
         const str = `${expr.name}(${params.join(", ")})`;
         if (inlineFunctions) {
           const func = this.functions[expr.name];
           if (!func) throw new Error(`Function ${expr.name} not defined`);
 
           const newReplace: Record<string, string> = {};
+          if (params.length !== func.parameters.length) {
+            params = func.parameters;
+          }
           func.parameters.forEach((param, i) => {
             newReplace[param] = params[i];
           });
@@ -445,6 +454,15 @@ class Interpreter {
             return `<${expr.name}>(${params.join(
               ", ",
             )}) = ${this.showBuiltinExpression(expr)}`;
+          case Keywords.Input:
+          case Keywords.Input:
+            if (
+              expr.parameters.length !== 1 &&
+              expr.parameters[0].type !== ExpressionType.String
+            ) {
+              throw new Error("Input expects a string parameter");
+            }
+            return `INPUT("${(expr.parameters[0] as any).value}")`;
           default:
             throw new Error(`Unexpected builtin expression: ${expr.name}`);
         }

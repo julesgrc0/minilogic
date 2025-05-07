@@ -7,6 +7,8 @@ import {
 } from "../parser";
 
 enum SemanticErrorType {
+  VariableNotDefinedOrCalledBeforeDeclaration,
+  VariableCalledBeforeDeclaration,
   VariableNotDefined,
   VariableReferenceNotDefined,
   VariableReference,
@@ -16,6 +18,9 @@ enum SemanticErrorType {
   VariableAmbiguousName,
 
   FunctionAlreadyDeclared,
+  FunctionNotDefinedOrCalledBeforeDeclaration,
+  FunctionNotDefined,
+  FunctionCalledBeforeDeclaration,
   FunctionAmbiguousName,
   FunctionDuplicateParameters,
   FunctionDuplicateSubParameters,
@@ -44,7 +49,10 @@ class SemanticErrorAnalyzer {
 
   private errors: SemanticError[] = [];
   private messages: Record<SemanticErrorType, string> = {
+    [SemanticErrorType.VariableNotDefinedOrCalledBeforeDeclaration]: "{0}",
     [SemanticErrorType.VariableNotDefined]: "Variable {0} not defined",
+    [SemanticErrorType.VariableCalledBeforeDeclaration]:
+      "Variable {0} called before declaration",
     [SemanticErrorType.VariableReferenceNotDefined]:
       "Variable {0}* not defined",
     [SemanticErrorType.VariableReference]: "Unexpected variable reference {0}*",
@@ -56,6 +64,10 @@ class SemanticErrorAnalyzer {
       "Ambiguous variable name {0} already used as a function",
     [SemanticErrorType.FunctionAlreadyDeclared]:
       "Function {0} already declared",
+    [SemanticErrorType.FunctionNotDefinedOrCalledBeforeDeclaration]: "{0}",
+    [SemanticErrorType.FunctionNotDefined]: "Function {0} not defined",
+    [SemanticErrorType.FunctionCalledBeforeDeclaration]:
+      "Function {0} called before declaration",
     [SemanticErrorType.FunctionAmbiguousName]:
       "Ambiguous function name {0} already used as a variable",
     [SemanticErrorType.FunctionDuplicateParameters]:
@@ -98,6 +110,36 @@ class SemanticErrorAnalyzer {
           break;
       }
     }
+
+    this.errors = this.errors.map((error) => {
+      if (
+        error.type ===
+        SemanticErrorType.FunctionNotDefinedOrCalledBeforeDeclaration
+      ) {
+        const funcname = error.message;
+        const type = this.functions.has(funcname)
+          ? SemanticErrorType.FunctionCalledBeforeDeclaration
+          : SemanticErrorType.FunctionNotDefined;
+        const message = this.messages[type].replace("{0}", funcname);
+
+        return { ...error, type, message };
+      }
+
+      if (
+        error.type ===
+        SemanticErrorType.VariableNotDefinedOrCalledBeforeDeclaration
+      ) {
+        const varname = error.message;
+        const type = this.variables.has(varname)
+          ? SemanticErrorType.VariableCalledBeforeDeclaration
+          : SemanticErrorType.VariableNotDefined;
+        const message = this.messages[type].replace("{0}", varname);
+
+        return { ...error, type, message };
+      }
+
+      return error;
+    });
 
     return this.errors;
   }
@@ -390,7 +432,11 @@ class SemanticErrorAnalyzer {
     if (expr.type !== ExpressionType.Variable) return;
     if (typeof parameters === "boolean") {
       if (expr.reference && !this.variables.has(expr.name)) {
-        this.pushError(SemanticErrorType.VariableNotDefined, [expr.name], expr);
+        this.pushError(
+          SemanticErrorType.VariableNotDefinedOrCalledBeforeDeclaration,
+          [expr.name],
+          expr,
+        );
       }
       return;
     }
@@ -438,7 +484,11 @@ class SemanticErrorAnalyzer {
     }
 
     if (!this.variables.has(expr.name)) {
-      this.pushError(SemanticErrorType.VariableNotDefined, [expr.name], expr);
+      this.pushError(
+        SemanticErrorType.VariableNotDefinedOrCalledBeforeDeclaration,
+        [expr.name],
+        expr,
+      );
     }
 
     if (expr.reference) {
@@ -456,7 +506,7 @@ class SemanticErrorAnalyzer {
 
     if (!this.functions.has(expr.name)) {
       this.pushError(
-        SemanticErrorType.FunctionAlreadyDeclared,
+        SemanticErrorType.FunctionNotDefinedOrCalledBeforeDeclaration,
         [expr.name],
         expr,
       );

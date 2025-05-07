@@ -24,6 +24,9 @@ class SemanticErrorSolver {
   public solve() {
     for (const error of this.errors) {
       switch (error.type) {
+        case SemanticErrorType.VariableCalledBeforeDeclaration:
+          this.moveVariableDeclaration(error);
+          break;
         case SemanticErrorType.VariableNotDefined:
         case SemanticErrorType.VariableReferenceNotDefined:
           this.createNewVariable(error);
@@ -39,6 +42,12 @@ class SemanticErrorSolver {
         case SemanticErrorType.VariableAmbiguousName:
         case SemanticErrorType.FunctionAmbiguousName:
           this.renameObject(error);
+          break;
+        case SemanticErrorType.FunctionNotDefined:
+          this.createNewFunction(error);
+          break;
+        case SemanticErrorType.FunctionCalledBeforeDeclaration:
+          this.moveFunctionDeclaration(error);
           break;
         case SemanticErrorType.FunctionDuplicateParameters:
         case SemanticErrorType.FunctionDuplicateSubParameters:
@@ -60,6 +69,10 @@ class SemanticErrorSolver {
           break;
         case SemanticErrorType.Error:
           this.removeError(error);
+          break;
+        case SemanticErrorType.VariableNotDefinedOrCalledBeforeDeclaration:
+        case SemanticErrorType.FunctionNotDefinedOrCalledBeforeDeclaration:
+          console.error("THIS ERROR SHOULD NOT HAPPEN");
           break;
       }
     }
@@ -148,6 +161,11 @@ class SemanticErrorSolver {
     });
   }
 
+  private moveVariableDeclaration(error: SemanticError) {
+    if (error.type !== SemanticErrorType.VariableCalledBeforeDeclaration)
+      return;
+  }
+
   private createFunctionParameter(error: SemanticError) {
     if (
       error.type !== SemanticErrorType.VariableParameterNotDefined ||
@@ -184,6 +202,15 @@ class SemanticErrorSolver {
       message: `Add parameter ${expr.name} to function ${stmt.name}`,
       value: `${stmt.name}(${new_parameters.join(", ")}) = `,
     });
+  }
+
+  private createNewFunction(error: SemanticError) {
+    if (error.type !== SemanticErrorType.FunctionNotDefined) return;
+  }
+
+  private moveFunctionDeclaration(error: SemanticError) {
+    if (error.type !== SemanticErrorType.FunctionCalledBeforeDeclaration)
+      return;
   }
 
   private renameObject(error: SemanticError) {

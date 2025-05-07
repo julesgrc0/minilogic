@@ -12,7 +12,7 @@
     "clean": "rm -rf ./out",
     "lint": "eslint",
     "format": "prettier --write ./src",
-    "launch": "npm run clean && npm run compile"
+    "launch": "npm run format && npm run clean && npm run compile"
   },
   "categories": [
     "Programming Languages"

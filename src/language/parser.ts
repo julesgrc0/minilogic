@@ -163,7 +163,7 @@ class Parser {
 
   public parse(): Statement[] {
     const statements: Statement[] = [];
-    while (this.current.type !== TokenType.EOF) {
+    while (!this.end()) {
       let stmt: Statement;
       try {
         stmt = this.parseStatement();
@@ -184,6 +184,12 @@ class Parser {
       statements.push(stmt);
     }
     return statements;
+  }
+
+  private end(): boolean {
+    return (
+      this.index >= this.tokens.length || this.current.type === TokenType.EOF
+    );
   }
 
   private eat(type: TokenType): Token {
@@ -262,7 +268,7 @@ class Parser {
     this.eat(TokenType.LParen);
 
     const parameters: Expression[] = [];
-    while (this.current.type !== TokenType.RParen) {
+    while (this.current.type !== TokenType.RParen && !this.end()) {
       parameters.push(this.parseExpression());
       if (this.current.type === TokenType.Comma) {
         this.eat(TokenType.Comma);
@@ -304,7 +310,7 @@ class Parser {
 
     let sub = false;
 
-    while (this.current.type !== TokenType.RParen) {
+    while (this.current.type !== TokenType.RParen && !this.end()) {
       if (this.current.type === TokenType.Identifier) {
         (sub ? subparameters : parameters).push(this.current.value as string);
       }
@@ -357,7 +363,7 @@ class Parser {
   private parseFunctionTable(): FunctionTableBody {
     this.eat(TokenType.LBracket);
     const table: FunctionTableBody = [];
-    while (this.current.type !== TokenType.RBracket) {
+    while (this.current.type !== TokenType.RBracket && !this.end()) {
       const start = this.current.start;
       let index: BinaryNumber[] = [];
 
@@ -390,7 +396,9 @@ class Parser {
 
     while (
       this.current.type === TokenType.Operator &&
-      this.getOperatorPrecedence(this.current.value as Operators) >= precedence
+      this.getOperatorPrecedence(this.current.value as Operators) >=
+        precedence &&
+      !this.end()
     ) {
       const operator = this.current.value as Operators;
       const opPrecedence = this.getOperatorPrecedence(operator);
@@ -523,7 +531,7 @@ class Parser {
     this.eat(TokenType.LParen);
     const parameters: Expression[] = [];
 
-    while (this.current.type !== TokenType.RParen) {
+    while (this.current.type !== TokenType.RParen && !this.end()) {
       parameters.push(this.parseExpression());
       if (this.current.type === TokenType.Comma) {
         this.eat(TokenType.Comma);

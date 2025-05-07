@@ -1,7 +1,4 @@
-
-A = INPUT("Hello World")
-
-PRINT(A)
+A = 0
 
 ANY_OP(OP_1, OP_2 | A, A_n, B, B_n, C, C_n) = [
 	00, (A xor A_n) and (B xor B_n) and (C xor C_n)
@@ -12,9 +9,13 @@ ANY_OP(OP_1, OP_2 | A, A_n, B, B_n, C, C_n) = [
 
 TABLE(ANY_OP(OP_1, OP_2, A, A_n, B, B_n, C, C_n))
 
+PRINT()
+
 MUX(S | A, B) = [
 	0, A
 	1, B
 ]
 
 TABLE(MUX(S, A, B))
+
+SHOW(A xor INPUT(""))
