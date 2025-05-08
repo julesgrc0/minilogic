@@ -1,4 +1,4 @@
-A = 1 and INPUT("aze")
+# A = 1 and INPUT("aze")
 
 ANY_OP(OP_1, OP_2 | A, A_n, B, B_n, C, C_n) = [
 	00, (A xor A_n) and (B xor B_n) and (C xor C_n)
@@ -9,20 +9,22 @@ ANY_OP(OP_1, OP_2 | A, A_n, B, B_n, C, C_n) = [
 
 TABLE(ANY_OP(OP_1, OP_2, A, A_n, B, B_n, C, C_n))
 
-PRINT()  
-
 MUX(S | A, B) = [
 	0, A
 	1, B
 ]
-TABLE(MUX(S, A, B))
-PRINT()  
 
+ADDER(A, B, Cin) = [
+	000, 0
+	001, 1
+	010, 1
+	011, 0
+	100, 1
+	101, 0
+	110, 0
+	111, 1
+]
 
+SHOW(SOLVE_SOP(ADDER(A, B, Cin)))
 
-
-  
-SHOW(A xor INPUT(""))
-
-J = Hello(1 or 1, 0 and 0)
-
+SHOW(SOLVE_POS(ADDER(A, B, Cin)))

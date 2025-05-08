@@ -129,43 +129,6 @@ const isRangeSet = (range: { start: Position; end: Position }): boolean => {
   return isPositionSet(range.start) && isPositionSet(range.end);
 };
 
-const expressionEqual = (a: Expression, b: Expression): boolean => {
-  if (a.type !== b.type) return false;
-
-  const bexpr = b as any;
-  switch (a.type) {
-    case ExpressionType.Number:
-      return a.value === bexpr.value;
-    case ExpressionType.String:
-      return a.value === bexpr.value;
-    case ExpressionType.Binary:
-      return (
-        a.operator === bexpr.operator &&
-        expressionEqual(a.left, bexpr.left) &&
-        expressionEqual(a.right, bexpr.right)
-      );
-    case ExpressionType.Unary:
-      return (
-        a.operator === bexpr.operator &&
-        expressionEqual(a.operand, bexpr.operand)
-      );
-    case ExpressionType.BuiltinCall:
-    case ExpressionType.FunctionCall:
-      if (a.name !== bexpr.name) return false;
-      if (a.parameters.length !== bexpr.parameters.length) return false;
-      for (let i = 0; i < a.parameters.length; i++) {
-        if (!expressionEqual(a.parameters[i], bexpr.parameters[i]))
-          return false;
-      }
-      return true;
-    case ExpressionType.Variable:
-      return a.name === bexpr.name && a.reference === bexpr.reference;
-    case ExpressionType.Error:
-      return a.message === bexpr.message;
-    default:
-      return false;
-  }
-};
 const convertPosition = (pos: Position): vscode.Position =>
   new vscode.Position(pos.line, pos.column);
 
@@ -220,23 +183,6 @@ const findNearestToLine = (
     }
   }
   return nearest;
-};
-
-const hasErrorInExpression = (expr: Expression): boolean => {
-  if (expr.type === ExpressionType.Error) return true;
-  switch (expr.type) {
-    case ExpressionType.Binary:
-      return (
-        hasErrorInExpression(expr.left) || hasErrorInExpression(expr.right)
-      );
-    case ExpressionType.Unary:
-      return hasErrorInExpression(expr.operand);
-    case ExpressionType.BuiltinCall:
-    case ExpressionType.FunctionCall:
-      return expr.parameters.some((param) => hasErrorInExpression(param));
-    default:
-      return false;
-  }
 };
 
 const findExpressionInStatements = (
@@ -294,21 +240,99 @@ const findExpressionInStatements = (
   return undefined;
 };
 
+const hasErrorInExpression = (expr: Expression): boolean => {
+  if (expr.type === ExpressionType.Error) return true;
+  switch (expr.type) {
+    case ExpressionType.Binary:
+      return (
+        hasErrorInExpression(expr.left) || hasErrorInExpression(expr.right)
+      );
+    case ExpressionType.Unary:
+      return hasErrorInExpression(expr.operand);
+    case ExpressionType.BuiltinCall:
+    case ExpressionType.FunctionCall:
+      return expr.parameters.some((param) => hasErrorInExpression(param));
+    default:
+      return false;
+  }
+};
+
+const expressionEqual = (a: Expression, b: Expression): boolean => {
+  if (a.type !== b.type) return false;
+
+  const bexpr = b as any;
+  switch (a.type) {
+    case ExpressionType.Number:
+      return a.value === bexpr.value;
+    case ExpressionType.String:
+      return a.value === bexpr.value;
+    case ExpressionType.Binary:
+      return (
+        a.operator === bexpr.operator &&
+        expressionEqual(a.left, bexpr.left) &&
+        expressionEqual(a.right, bexpr.right)
+      );
+    case ExpressionType.Unary:
+      return (
+        a.operator === bexpr.operator &&
+        expressionEqual(a.operand, bexpr.operand)
+      );
+    case ExpressionType.BuiltinCall:
+    case ExpressionType.FunctionCall:
+      if (a.name !== bexpr.name) return false;
+      if (a.parameters.length !== bexpr.parameters.length) return false;
+      for (let i = 0; i < a.parameters.length; i++) {
+        if (!expressionEqual(a.parameters[i], bexpr.parameters[i]))
+          return false;
+      }
+      return true;
+    case ExpressionType.Variable:
+      return a.name === bexpr.name && a.reference === bexpr.reference;
+    case ExpressionType.Error:
+      return a.message === bexpr.message;
+    default:
+      return false;
+  }
+};
+
+const getVariablesInExpression = (expr: Expression): string[] => {
+  switch (expr.type) {
+    case ExpressionType.Variable:
+      return [expr.name];
+    case ExpressionType.BuiltinCall:
+    case ExpressionType.FunctionCall:
+      return expr.parameters.flatMap((param) =>
+        getVariablesInExpression(param),
+      );
+    case ExpressionType.Binary:
+      return [
+        ...getVariablesInExpression(expr.left),
+        ...getVariablesInExpression(expr.right),
+      ];
+    case ExpressionType.Unary:
+      return getVariablesInExpression(expr.operand);
+    case ExpressionType.Number:
+    default:
+      return [];
+  }
+};
+
 export {
   levenshteinDistance,
-  getCombinations,
-  expressionEqual,
   minPosition,
   maxPosition,
-  isPositionSet,
   convertPosition,
+  isPositionSet,
   isRangeSet,
   positionDistance,
+  convertRange,
   findNearestToPosition,
   findNearestToLine,
   findExpressionInStatements,
   hasErrorInExpression,
-  convertRange,
+  expressionEqual,
+  getVariablesInExpression,
+  getCombinations,
   POSITION_NOT_SET,
   RANGE_NOT_SET,
 };

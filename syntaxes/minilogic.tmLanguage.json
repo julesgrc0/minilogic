@@ -43,7 +43,7 @@
 			"patterns": [
 				{
 					"name": "support.function.builtin.minilogic",
-					"match": "\\b(PRINT|SHOW|TABLE|GRAPH|EXPORT|TO_NAND|TO_NOR|SIMPLIFY)\\b"
+					"match": "\\b(PRINT|SHOW|TABLE|GRAPH|EXPORT|IMPORT|TO_NAND|TO_NOR|SOLVE_POS|SOLVE_SOP)\\b"
 				}
 			]
 		},

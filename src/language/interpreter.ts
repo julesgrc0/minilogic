@@ -1,7 +1,9 @@
+import { Solve } from "./builtin/solve";
 import { BinaryNumber, Keywords, Operators } from "./lexer";
 import { Expression, ExpressionType, Statement, StatementType } from "./parser";
 import {
   getCombinations,
+  getVariablesInExpression,
   maxPosition,
   minPosition,
   RANGE_NOT_SET,
@@ -78,13 +80,11 @@ class Interpreter {
         break;
       case Keywords.Show:
         {
-          this.output.push(
-            stmt.parameters
-              .map((param) => {
-                return this.showExpression(param, true);
-              })
-              .join(" "),
+          const promises = stmt.parameters.map(
+            async (param) => await this.showExpression(param, true),
           );
+          const resolvedValues = await Promise.all(promises);
+          this.output.push(resolvedValues.join(" "));
         }
         break;
       case Keywords.Table:
@@ -282,34 +282,76 @@ class Interpreter {
     }
   }
 
-  private getVariableInExpression(expr: Expression): string[] {
-    switch (expr.type) {
-      case ExpressionType.Number:
-        return [];
-      case ExpressionType.Variable:
-        return [expr.name];
-      case ExpressionType.BuiltinCall:
-      case ExpressionType.FunctionCall:
-        return expr.parameters.flatMap((param) =>
-          this.getVariableInExpression(param),
+  private async showBuiltinExpression(
+    expr: Expression & {
+      type: ExpressionType.BuiltinCall;
+    },
+  ): Promise<string> {
+    switch (expr.name) {
+      case Keywords.ToNand:
+        return this.showExpression(
+          this.convertExpressionToLogicGate(expr, Operators.Nand),
         );
-      case ExpressionType.Binary:
-        return [
-          ...this.getVariableInExpression(expr.left),
-          ...this.getVariableInExpression(expr.right),
-        ];
-      case ExpressionType.Unary:
-        return this.getVariableInExpression(expr.operand);
+      case Keywords.ToNor:
+        return this.showExpression(
+          this.convertExpressionToLogicGate(expr, Operators.Nor),
+        );
+      case Keywords.SolvePOS:
+      case Keywords.SolveSOP: {
+        const targetexpr = expr.parameters[0];
+
+        const minterms = (await this.getMinMaxterms(targetexpr)).min.map((t) =>
+          t.join(""),
+        );
+        const solver = new Solve(
+          getVariablesInExpression(targetexpr),
+          minterms,
+        );
+
+        const result = expr; //solver.solve();
+        if (expr.name === Keywords.SolvePOS) {
+          return this.showExpression(result, true);
+        } else {
+          return this.showExpression(
+            await this.convertExpressionToSOP(result),
+            true,
+          );
+        }
+      }
+
       default:
-        throw new Error("Unexpected expression type");
+        throw new Error(`Unexpected builtin expression: ${expr.name}`);
     }
   }
 
+  private async getMinMaxterms(expr: Expression) {
+    const variables = getVariablesInExpression(expr);
+    const cmbs = getCombinations(variables.length);
+
+    const minterms: BinaryNumber[][] = [];
+    const maxterms: BinaryNumber[][] = [];
+
+    for (const cmb of cmbs) {
+      const localVariables: MLCVariable = {};
+      variables.forEach((variable, i) => {
+        localVariables[variable] = cmb[i];
+      });
+
+      const result = await this.evalExpression(expr, localVariables);
+      if (result) {
+        minterms.push(cmb);
+      } else {
+        maxterms.push(cmb);
+      }
+    }
+    return { min: minterms, max: maxterms };
+  }
+
   public async getTruthTable(expr: Expression): Promise<string[][]> {
-    const header = ["", this.showExpression(expr)];
+    const header = ["", await this.showExpression(expr)];
 
     const localVariables: MLCVariable = {};
-    for (const variable of this.getVariableInExpression(expr)) {
+    for (const variable of getVariablesInExpression(expr)) {
       localVariables[variable] = 0;
     }
     header[0] = Object.keys(localVariables).join(" | ");
@@ -368,35 +410,11 @@ class Interpreter {
     return formattedRows.join("\n");
   }
 
-  private showBuiltinExpression(
-    expr: Expression & {
-      type: ExpressionType.BuiltinCall;
-    },
-  ): string {
-    switch (expr.name) {
-      case Keywords.ToNand:
-        return this.showExpression(
-          this.convertExpressionToLogicGate(expr, Operators.Nand),
-        );
-      case Keywords.ToNor:
-        return this.showExpression(
-          this.convertExpressionToLogicGate(expr, Operators.Nor),
-        );
-      case Keywords.SolvePOS:
-      case Keywords.SolveSOP:
-        // TODO: Implement SOLVE
-        return this.showExpression(expr.parameters[0]);
-
-      default:
-        throw new Error(`Unexpected builtin expression: ${expr.name}`);
-    }
-  }
-
-  public showExpression(
+  public async showExpression(
     expr: Expression,
     inlineFunctions: boolean = false,
     replace: Record<string, string> = {},
-  ): string {
+  ): Promise<string> {
     switch (expr.type) {
       case ExpressionType.String:
       case ExpressionType.Number:
@@ -412,9 +430,11 @@ class Interpreter {
         return expr.name + value;
       }
       case ExpressionType.FunctionCall: {
-        let params = expr.parameters.map((param) =>
-          this.showExpression(param, inlineFunctions, replace),
+        const paramPromises = expr.parameters.map(
+          async (param) =>
+            await this.showExpression(param, inlineFunctions, replace),
         );
+        let params = await Promise.all(paramPromises);
 
         const str = `${expr.name}(${params.join(", ")})`;
         if (inlineFunctions) {
@@ -428,16 +448,20 @@ class Interpreter {
           func.parameters.forEach((param, i) => {
             newReplace[param] = params[i];
           });
-          return str + " = " + this.showExpression(func.body, true, newReplace);
+          return (
+            str +
+            " = " +
+            (await this.showExpression(func.body, true, newReplace))
+          );
         }
         return str;
       }
       case ExpressionType.Binary:
-        return `(${this.showExpression(expr.left, inlineFunctions, replace)} ${
+        return `(${await this.showExpression(expr.left, inlineFunctions, replace)} ${
           expr.operator
-        } ${this.showExpression(expr.right, inlineFunctions, replace)})`;
+        } ${await this.showExpression(expr.right, inlineFunctions, replace)})`;
       case ExpressionType.Unary:
-        return `${expr.operator} ${this.showExpression(
+        return `${expr.operator} ${await this.showExpression(
           expr.operand,
           inlineFunctions,
           replace,
@@ -448,12 +472,14 @@ class Interpreter {
           case Keywords.ToNor:
           case Keywords.SolvePOS:
           case Keywords.SolveSOP:
-            const params = expr.parameters.map((param) =>
-              this.showExpression(param, inlineFunctions, replace),
+            const paramPromises = expr.parameters.map(
+              async (param) =>
+                await this.showExpression(param, inlineFunctions, replace),
             );
+            const params = await Promise.all(paramPromises);
             return `<${expr.name}>(${params.join(
               ", ",
-            )}) = ${this.showBuiltinExpression(expr)}`;
+            )}) = ${await this.showBuiltinExpression(expr)}`;
           case Keywords.Input:
           case Keywords.Input:
             if (
@@ -538,7 +564,7 @@ class Interpreter {
 
   public convertExpressionToLogicGate(
     expr: Expression,
-    operator: Operators,
+    operator: Operators.Nand | Operators.Nor,
   ): Expression {
     const logicGate = (a: Expression, b: Expression): Expression => ({
       type: ExpressionType.Binary,
@@ -629,6 +655,98 @@ class Interpreter {
       default:
         return expr;
     }
+  }
+
+  public async convertExpressionToSOP(expr: Expression): Promise<Expression> {
+    const variables = getVariablesInExpression(expr);
+    const minterms = (await this.getMinMaxterms(expr)).min;
+
+    const sopTerms: Expression[] = minterms.map((minterm) => {
+      const terms: Expression[] = minterm.map((bit, index) => {
+        return bit
+          ? {
+              type: ExpressionType.Variable,
+              name: variables[index],
+              reference: false,
+              range: RANGE_NOT_SET,
+            }
+          : {
+              type: ExpressionType.Unary,
+              operator: Operators.Not,
+              operand: {
+                type: ExpressionType.Variable,
+                name: variables[index],
+                reference: false,
+                range: RANGE_NOT_SET,
+              },
+              range: RANGE_NOT_SET,
+            };
+      });
+
+      return terms.reduce((acc, term) => ({
+        type: ExpressionType.Binary,
+        operator: Operators.And,
+        left: acc,
+        right: term,
+        range: RANGE_NOT_SET,
+      }));
+    });
+
+    return sopTerms.length === 0
+      ? { type: ExpressionType.Number, value: 0, range: RANGE_NOT_SET }
+      : sopTerms.reduce((acc, term) => ({
+          type: ExpressionType.Binary,
+          operator: Operators.Or,
+          left: acc,
+          right: term,
+          range: RANGE_NOT_SET,
+        }));
+  }
+
+  public async convertExpressionToPOS(expr: Expression): Promise<Expression> {
+    const variables = getVariablesInExpression(expr);
+    const maxterms = (await this.getMinMaxterms(expr)).max;
+
+    const posTerms: Expression[] = maxterms.map((maxterm) => {
+      const terms: Expression[] = maxterm.map((bit, index) => {
+        return bit
+          ? {
+              type: ExpressionType.Unary,
+              operator: Operators.Not,
+              operand: {
+                type: ExpressionType.Variable,
+                name: variables[index],
+                reference: false,
+                range: RANGE_NOT_SET,
+              },
+              range: RANGE_NOT_SET,
+            }
+          : {
+              type: ExpressionType.Variable,
+              name: variables[index],
+              reference: false,
+              range: RANGE_NOT_SET,
+            };
+      });
+
+      return terms.reduce((acc, term) => ({
+        type: ExpressionType.Binary,
+        operator: Operators.Or,
+        left: acc,
+        right: term,
+        range: RANGE_NOT_SET,
+      }));
+    });
+
+    return posTerms.length === 0
+      ? { type: ExpressionType.Number, value: 1, range: RANGE_NOT_SET }
+      : posTerms.reduce((acc, term) => ({
+          type: ExpressionType.Binary,
+          operator: Operators.And,
+          left: acc,
+          right: term,
+          range: RANGE_NOT_SET,
+        }));
   }
 }
 
