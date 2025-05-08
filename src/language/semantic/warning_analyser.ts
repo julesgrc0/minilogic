@@ -145,12 +145,10 @@ class SemanticWarningAnalyzer {
 
     let new_object = this.removeDeadExpression(stmt.body);
     if (!expressionEqual(new_object, stmt.body)) {
-      this.pushWarning(
-        SemanticWarningType.ExpressionOptimized,
-        null,
-        stmt,
-        new_object,
-      );
+      this.pushWarning(SemanticWarningType.ExpressionOptimized, null, stmt, {
+        ...stmt,
+        body: new_object,
+      });
     }
 
     if (stmt.body.type == ExpressionType.Number) {
@@ -190,12 +188,16 @@ class SemanticWarningAnalyzer {
 
       let new_object = this.removeDeadExpression(expr.value);
       if (!expressionEqual(new_object, expr.value)) {
-        this.pushWarning(
-          SemanticWarningType.ExpressionOptimized,
-          null,
-          stmt,
-          new_object,
-        );
+        this.pushWarning(SemanticWarningType.ExpressionOptimized, null, stmt, {
+          ...stmt,
+          table: [
+            ...stmt.table.filter((e) => e.index.value !== expr.index.value),
+            {
+              ...expr,
+              value: new_object,
+            },
+          ],
+        });
       }
     }
   }

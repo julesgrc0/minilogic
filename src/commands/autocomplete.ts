@@ -53,7 +53,6 @@ export default vscode.languages.registerCompletionItemProvider(
         nextStmt = state.ast[index + 1];
       }
 
-      console.log(stmt, nextStmt);
       if ((nextStmt && nextStmt.type === StatementType.Error) || isErrorStmt) {
         for (const variable of Object.keys(interpreter.variables)) {
           if (stmt.type === StatementType.Variable && stmt.name === variable) {

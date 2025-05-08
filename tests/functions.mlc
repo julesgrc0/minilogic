@@ -1,4 +1,4 @@
-A = 1 or INPUT("")
+A = 1 and INPUT("aze")
 
 ANY_OP(OP_1, OP_2 | A, A_n, B, B_n, C, C_n) = [
 	00, (A xor A_n) and (B xor B_n) and (C xor C_n)
@@ -20,5 +20,4 @@ TABLE(MUX(S, A, B))
 
   
 SHOW(A xor INPUT(""))
-
 

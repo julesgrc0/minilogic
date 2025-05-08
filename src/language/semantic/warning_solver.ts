@@ -33,15 +33,14 @@ class SemanticWarningSolver {
   private optimizeExpression(warning: SemanticWarning) {
     if (
       warning.type !== SemanticWarningType.ExpressionOptimized ||
-      warning.new_object === undefined
+      warning.new_object === undefined ||
+      isExpression(warning.new_object)
     )
       return;
 
     try {
-      const value = isStatement(warning.new_object)
-        ? Format.formatStatement(warning.new_object)
-        : Format.formatExpression(warning.new_object);
-
+      const value = Format.formatStatement(warning.new_object);
+      console.log(warning.object.range, value);
       this.fixes.push({
         start: warning.object.range.start,
         end: warning.object.range.end,

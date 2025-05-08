@@ -274,6 +274,7 @@ class Parser {
         this.eat(TokenType.Comma);
       }
     }
+    const end = this.current.end;
     this.eat(TokenType.RParen);
 
     return {
@@ -282,7 +283,7 @@ class Parser {
       parameters,
       range: {
         start,
-        end: this.current.end,
+        end,
       },
     };
   }
@@ -543,7 +544,7 @@ class Parser {
         this.eat(TokenType.Comma);
       }
     }
-
+    const end = this.current.end;
     this.eat(TokenType.RParen);
     return {
       type: builtin ? ExpressionType.BuiltinCall : ExpressionType.FunctionCall,
@@ -551,7 +552,7 @@ class Parser {
       parameters,
       range: {
         start,
-        end: this.current.end,
+        end,
       },
     };
   }
