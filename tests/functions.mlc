@@ -9,7 +9,7 @@ ANY_OP(OP_1, OP_2 | A, A_n, B, B_n, C, C_n) = [
 
 TABLE(ANY_OP(OP_1, OP_2, A, A_n, B, B_n, C, C_n))
 
-PRINT()
+PRINT()  
 
 MUX(S | A, B) = [
 	0, A
@@ -18,4 +18,7 @@ MUX(S | A, B) = [
 
 TABLE(MUX(S, A, B))
 
+  
 SHOW(A xor INPUT(""))
+
+

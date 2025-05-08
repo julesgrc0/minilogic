@@ -1,6 +1,7 @@
 import { Format } from "../format";
 import { CodeFix } from "../lexer";
 import { isExpression, isStatement, StatementType } from "../parser";
+import { hasErrorInExpression } from "../utils";
 import { SemanticWarning, SemanticWarningType } from "./warning_analyser";
 
 class SemanticWarningSolver {
@@ -36,15 +37,18 @@ class SemanticWarningSolver {
     )
       return;
 
-    const value = isStatement(warning.new_object)
-      ? Format.formatStatement(warning.new_object)
-      : Format.formatExpression(warning.new_object);
-    this.fixes.push({
-      start: warning.object.range.start,
-      end: warning.object.range.end,
-      message: `Optimize expression to : ${value}`,
-      value: value,
-    });
+    try {
+      const value = isStatement(warning.new_object)
+        ? Format.formatStatement(warning.new_object)
+        : Format.formatExpression(warning.new_object);
+
+      this.fixes.push({
+        start: warning.object.range.start,
+        end: warning.object.range.end,
+        message: `Optimize expression to : ${value}`,
+        value: value,
+      });
+    } catch {}
   }
 
   private removeObject(warning: SemanticWarning) {
@@ -85,6 +89,8 @@ class SemanticWarningSolver {
     const stmt = warning.new_object;
     if (stmt.type !== StatementType.Function) return;
 
+    if (hasErrorInExpression(stmt.body)) return;
+
     this.fixes.push({
       start: stmt.range.start,
       end: stmt.range.end,
@@ -103,6 +109,7 @@ class SemanticWarningSolver {
 
     const stmt = warning.new_object;
     if (stmt.type !== StatementType.Function) return;
+    if (hasErrorInExpression(stmt.body)) return;
 
     this.fixes.push({
       start: stmt.range.start,

@@ -16,13 +16,13 @@ export default vscode.languages.registerHoverProvider("minilogic", {
     position: vscode.Position,
     cancel: vscode.CancellationToken,
   ) => {
-    const state = getOrCreateState(document);
+    const state = await getOrCreateState(document);
 
     const stmt = findNearestToPosition(
       { line: position.line + 1, column: position.character, offset: -1 },
       state.ast,
     );
-    console.log("stmt", stmt);
+
     if (
       !stmt ||
       (stmt.type !== StatementType.BuiltinCall &&

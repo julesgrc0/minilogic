@@ -6,3 +6,4 @@ C = A
 
 D = A or not C and C or not not A
 
+J =  A and C nor D

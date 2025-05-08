@@ -5,6 +5,7 @@ import format from "./commands/format";
 import update from "./commands/update";
 import quickfix from "./commands/quickfix";
 import hover from "./commands/hover";
+import autocomplete from "./commands/autocomplete";
 
 import { diagnosticCollection } from "./commands/state";
 
@@ -21,6 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
       format,
       quickfix,
       hover,
+      autocomplete,
       changeWatcher,
       loadWatcher,
     );

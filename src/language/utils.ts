@@ -204,6 +204,41 @@ const findNearestToPosition = (
   return nearest;
 };
 
+const findNearestToLine = (
+  line: number,
+  ast: Statement[],
+): Statement | null => {
+  let nearest: Statement | null = null;
+  let dist = Number.MAX_VALUE;
+  for (const stmt of ast) {
+    let a = Math.abs(line - stmt.range.start.line);
+    let b = Math.abs(line - stmt.range.end.line);
+
+    if (a < dist || b < dist) {
+      dist = Math.min(a, b);
+      nearest = stmt;
+    }
+  }
+  return nearest;
+};
+
+const hasErrorInExpression = (expr: Expression): boolean => {
+  if (expr.type === ExpressionType.Error) return true;
+  switch (expr.type) {
+    case ExpressionType.Binary:
+      return (
+        hasErrorInExpression(expr.left) || hasErrorInExpression(expr.right)
+      );
+    case ExpressionType.Unary:
+      return hasErrorInExpression(expr.operand);
+    case ExpressionType.BuiltinCall:
+    case ExpressionType.FunctionCall:
+      return expr.parameters.some((param) => hasErrorInExpression(param));
+    default:
+      return false;
+  }
+};
+
 export {
   levenshteinDistance,
   getCombinations,
@@ -215,6 +250,8 @@ export {
   isRangeSet,
   positionDistance,
   findNearestToPosition,
+  findNearestToLine,
+  hasErrorInExpression,
   convertRange,
   POSITION_NOT_SET,
   RANGE_NOT_SET,

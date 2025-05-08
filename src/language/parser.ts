@@ -401,6 +401,12 @@ class Parser {
       !this.end()
     ) {
       const operator = this.current.value as Operators;
+      if (operator === Operators.Not) {
+        throw new ParserEatError(
+          "Unexpected binary operator",
+          TokenType.Operator,
+        );
+      }
       const opPrecedence = this.getOperatorPrecedence(operator);
 
       this.eat(TokenType.Operator);

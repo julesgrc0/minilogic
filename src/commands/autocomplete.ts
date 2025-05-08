@@ -1,294 +1,308 @@
-// const autoCompleteProvider = vscode.languages.registerCompletionItemProvider(
-//   "minilogic",
-//   {
-//     provideCompletionItems: actionAutocompleteCode,
-//   },
-//   "(",
-//   ")",
-//   "[",
-//   "=",
-//   " ",
-//   ",",
-//   " ",
-//   "\t",
-//   "\r",
-//   "a",
-//   "b",
-//   "c",
-//   "d",
-//   "e",
-//   "f",
-//   "g",
-//   "h",
-//   "i",
-//   "j",
-//   "k",
-//   "l",
-//   "m",
-//   "n",
-//   "o",
-//   "p",
-//   "q",
-//   "r",
-//   "s",
-//   "t",
-//   "u",
-//   "v",
-//   "w",
-//   "x",
-//   "y",
-//   "z",
-//   "A",
-//   "B",
-//   "C",
-//   "D",
-//   "E",
-//   "F",
-//   "G",
-//   "H",
-//   "I",
-//   "J",
-//   "K",
-//   "L",
-//   "M",
-//   "N",
-//   "O",
-//   "P",
-//   "Q",
-//   "R",
-//   "S",
-//   "T",
-//   "U",
-//   "V",
-//   "W",
-//   "X",
-//   "Y",
-//   "Z",
-//   "0",
-//   "1",
-//   "2",
-//   "3",
-//   "4",
-//   "5",
-//   "6",
-//   "7",
-//   "8",
-//   "9"
-// );
+import * as vscode from "vscode";
+import { getOrCreateState } from "./state";
+import { Interpreter } from "../language/interpreter";
+import { Keywords, Operators } from "../language/lexer";
+import {
+  findNearestToLine,
+  hasErrorInExpression,
+  RANGE_NOT_SET,
+} from "../language/utils";
+import {
+  Expression,
+  ExpressionType,
+  Statement,
+  StatementType,
+} from "../language/parser";
 
-// const actionAutocompleteCode = (
-//   document: vscode.TextDocument,
-//   position: vscode.Position,
-//   cancel: vscode.CancellationToken,
-//   context: vscode.CompletionContext
-// ) => {
-//   const code = document.getText();
-//   const lexer = new Lexer(code);
-//   const parser = new Parser(lexer);
-//   const ast = parser.parseProgram();
+export default vscode.languages.registerCompletionItemProvider(
+  "minilogic",
+  {
+    provideCompletionItems: async (
+      document: vscode.TextDocument,
+      position: vscode.Position,
+      cancel: vscode.CancellationToken,
+      context: vscode.CompletionContext,
+    ) => {
+      const state = getOrCreateState(document);
 
-//   const interpreter = new Interpreter(ast);
-//   interpreter.run();
+      const interpreter = new Interpreter(state.ast, async (m) => 0);
+      try {
+        await interpreter.execute();
+      } catch {}
 
-//   const completions: vscode.CompletionItem[] = [];
+      const completions: vscode.CompletionItem[] = [];
 
-//   if (context.triggerCharacter === "[") {
-//     const token = lexer.getFirstTokenAtLine(position.line);
-//     if (!token) return;
+      const currentLine = document.lineAt(position.line).text;
+      if (currentLine.trim() === "") return; // SNIPPETS.JSON
 
-//     const stmt = findStatementById(ast, token.pos);
-//     if (
-//       !stmt ||
-//       stmt.type !== StatementType.FunctionDefinition ||
-//       stmt.expression.type !== ExpressionType.TableDefinition
-//     ) {
-//       return;
-//     }
+      const stmt = findNearestToLine(position.line + 1, state.ast);
+      if (!stmt) return;
+      const isErrorStmt =
+        (stmt.type === StatementType.Variable &&
+          hasErrorInExpression(stmt.value)) ||
+        (stmt.type === StatementType.Function &&
+          hasErrorInExpression(stmt.body));
 
-//     const table = new vscode.CompletionItem(
-//       "Generate Table Function",
-//       vscode.CompletionItemKind.Text
-//     );
+      let nextStmt: Statement | null;
 
-//     const txt = new vscode.SnippetString();
-//     const cmbs = getCombinations(stmt.parameters.length);
-//     txt.appendText("\n");
-//     for (const cmb of cmbs) {
-//       txt.appendText(`${cmb.join("")}, 0\n`);
-//     }
+      const index = state.ast.indexOf(stmt);
 
-//     table.insertText = txt;
-//     table.detail = "Empty Table";
+      if (index === -1 || index + 1 >= state.ast.length) {
+        nextStmt = null;
+      } else {
+        nextStmt = state.ast[index + 1];
+      }
 
-//     completions.push(table);
-//     return completions;
-//   }
-//   const token = lexer.getFirstTokenAtLine(position.line);
-//   if (!token) return;
+      console.log(stmt, nextStmt);
+      if ((nextStmt && nextStmt.type === StatementType.Error) || isErrorStmt) {
+        for (const variable of Object.keys(interpreter.variables)) {
+          if (stmt.type === StatementType.Variable && stmt.name === variable) {
+            continue;
+          }
 
-//   const stmt = findStatementById(ast, token.pos);
-//   if (!stmt) return;
+          const isFunction =
+            stmt.type == StatementType.Function ||
+            stmt.type == StatementType.FunctionTable;
 
-//   try {
-//     const nextStmt = ast[ast.indexOf(stmt) + 1];
-//     if (nextStmt.type != "Error") {
-//       const opts = lexer.getOperators();
-//       for (const opt of opts) {
-//         const item = new vscode.CompletionItem(
-//           opt,
-//           vscode.CompletionItemKind.Operator
-//         );
-//         item.detail = "Operator";
+          const item = new vscode.CompletionItem(
+            variable + (isFunction ? "*" : ""),
+            vscode.CompletionItemKind.Variable,
+          );
+          if (isFunction) {
+            item.detail = "Variable Reference";
+          } else {
+            item.detail = "Variable";
+          }
 
-//         const doc = new vscode.MarkdownString();
-//         doc.appendMarkdown(`**${opt}**\n\n`);
+          const doc = new vscode.MarkdownString();
 
-//         const expr: Expression =
-//           opt == Operators.Not
-//             ? {
-//                 type: ExpressionType.UnaryExpression,
-//                 operator: opt,
-//                 operand: {
-//                   type: ExpressionType.Variable,
-//                   name: "A",
-//                   reference: false,
-//                   id: -1,
-//                 },
-//                 id: -1,
-//               }
-//             : {
-//                 type: ExpressionType.BinaryExpression,
-//                 operator: opt,
-//                 left: {
-//                   type: ExpressionType.Variable,
-//                   name: "A",
-//                   reference: false,
-//                   id: 0,
-//                 },
-//                 right: {
-//                   type: ExpressionType.Variable,
-//                   name: "B",
-//                   reference: false,
-//                   id: -1,
-//                 },
-//                 id: -1,
-//               };
-//         const exprStr = opt == Operators.Not ? "not A" : "A " + opt + " B";
-//         const vars = opt == Operators.Not ? ["A"] : ["A", "B"];
+          let value = interpreter.variables[variable] ?? "X";
+          doc.appendMarkdown(`**${variable}** = ${value}`);
+          item.documentation = doc;
+          completions.push(item);
+        }
 
-//         const truthtable = interpreter.generateTruthTableFromExpression(
-//           vars,
-//           expr
-//         );
-//         if (truthtable) {
-//           const inputs = truthtable.inputs.join(" ");
-//           const rows = truthtable.rows
-//             .map(([input, output]) => `${input.join(" ")} | ${output}`)
-//             .join("\n");
+        for (const func of Object.keys(interpreter.functions)) {
+          if (stmt.type === StatementType.Function && stmt.name === func) {
+            for (const param of stmt.parameters) {
+              const item = new vscode.CompletionItem(
+                param,
+                vscode.CompletionItemKind.Variable,
+              );
+              item.detail = "Function Parameter";
 
-//           doc.appendCodeblock(
-//             `${inputs} | ${exprStr}\n${"-".repeat(
-//               inputs.length + exprStr.length + 3
-//             )}\n${rows}`,
-//             "txt"
-//           );
-//         }
+              const doc = new vscode.MarkdownString();
+              doc.appendMarkdown(`**${func}**(${stmt.parameters.join(", ")})`);
+              item.documentation = doc;
 
-//         item.documentation = doc;
-//         completions.push(item);
-//       }
-//       return completions;
-//     }
-//   } catch {}
+              completions.push(item);
+            }
+            continue;
+          }
 
-//   const variables = interpreter.getVariables();
-//   for (const variable of variables.keys()) {
-//     if (stmt.type === StatementType.Assignment && stmt.variable === variable)
-//       continue;
+          const funcitem = interpreter.functions[func];
+          if (!funcitem) continue;
 
-//     const item = new vscode.CompletionItem(
-//       variable + (stmt.type === StatementType.FunctionDefinition ? "*" : ""),
-//       vscode.CompletionItemKind.Variable
-//     );
-//     if (stmt.type === StatementType.FunctionDefinition) {
-//       item.detail = "Variable Reference";
-//     } else {
-//       item.detail = "Variable";
-//     }
+          const item = new vscode.CompletionItem(
+            func + `(${funcitem.parameters.join(", ")})`,
+            vscode.CompletionItemKind.Function,
+          );
+          item.detail = "Function";
 
-//     const doc = new vscode.MarkdownString();
-//     doc.appendMarkdown(`**${variable}** = ${variables.get(variable)}`);
-//     item.documentation = doc;
-//     completions.push(item);
-//   }
+          const table = await interpreter.showTruthTable({
+            type: ExpressionType.FunctionCall,
+            name: func,
+            parameters: funcitem.parameters.map((param) => {
+              return {
+                type: ExpressionType.Variable,
+                name: param,
+                reference: false,
+                range: RANGE_NOT_SET,
+              } as Expression;
+            }),
+            range: RANGE_NOT_SET,
+          });
+          const doc = new vscode.MarkdownString();
+          doc.appendMarkdown(
+            `**${func}**(${funcitem.parameters.join(", ")})\n\n`,
+          );
 
-//   const functions = interpreter.getFunctions();
-//   for (const func of functions.keys()) {
-//     if (stmt.type === StatementType.FunctionDefinition && stmt.name === func) {
-//       for (const param of stmt.parameters) {
-//         const item = new vscode.CompletionItem(
-//           param,
-//           vscode.CompletionItemKind.Variable
-//         );
-//         item.detail = "Function Parameter";
+          doc.appendCodeblock(table, "txt");
+          item.documentation = doc;
 
-//         const doc = new vscode.MarkdownString();
-//         doc.appendMarkdown(`**${func}**(${stmt.parameters.join(", ")})`);
-//         item.documentation = doc;
+          completions.push(item);
+        }
+      } else {
+        for (const opt of Object.values(Operators)) {
+          const item = new vscode.CompletionItem(
+            opt,
+            vscode.CompletionItemKind.Operator,
+          );
+          item.detail = "Operator";
 
-//         completions.push(item);
-//       }
-//       continue;
-//     }
+          const doc = new vscode.MarkdownString();
+          doc.appendMarkdown(`**${opt}**\n\n`);
 
-//     const funcitem = functions.get(func);
-//     if (!funcitem || funcitem.type !== StatementType.FunctionDefinition)
-//       continue;
+          const expr: Expression =
+            opt == Operators.Not
+              ? {
+                  type: ExpressionType.Unary,
+                  operator: opt,
+                  operand: {
+                    type: ExpressionType.Variable,
+                    name: "A",
+                    reference: false,
+                    range: RANGE_NOT_SET,
+                  },
+                  range: RANGE_NOT_SET,
+                }
+              : {
+                  type: ExpressionType.Binary,
+                  operator: opt,
+                  left: {
+                    type: ExpressionType.Variable,
+                    name: "A",
+                    reference: false,
+                    range: RANGE_NOT_SET,
+                  },
+                  right: {
+                    type: ExpressionType.Variable,
+                    name: "B",
+                    reference: false,
+                    range: RANGE_NOT_SET,
+                  },
+                  range: RANGE_NOT_SET,
+                };
 
-//     const item = new vscode.CompletionItem(
-//       func + `(${funcitem.parameters.join(", ")})`,
-//       vscode.CompletionItemKind.Function
-//     );
-//     item.detail = "Function";
+          const table = await interpreter.showTruthTable(expr);
+          doc.appendCodeblock(table, "txt");
 
-//     const truthtable = interpreter.generateTruthTableFromFunction(func);
-//     if (truthtable) {
-//       const doc = new vscode.MarkdownString();
-//       doc.appendMarkdown(`**${func}**(${funcitem.parameters.join(", ")})\n\n`);
+          item.documentation = doc;
+          completions.push(item);
+        }
+        return completions;
+      }
 
-//       const inputs = truthtable.inputs.join(" ");
-//       const rows = truthtable.rows
-//         .map(([input, output]) => `${input.join(" ")} | ${output}`)
-//         .join("\n");
+      // if (context.triggerCharacter === "[") {
+      //   const token = lexer.getFirstTokenAtLine(position.line);
+      //   if (!token) return;
 
-//       doc.appendCodeblock(
-//         `${inputs} | ${func}\n${"-".repeat(
-//           inputs.length + func.length + 3
-//         )}\n${rows}`,
-//         "txt"
-//       );
+      //   const stmt = findStatementById(ast, token.pos);
+      //   if (
+      //     !stmt ||
+      //     stmt.type !== StatementType.FunctionDefinition ||
+      //     stmt.expression.type !== ExpressionType.TableDefinition
+      //   ) {
+      //     return;
+      //   }
 
-//       item.documentation = doc;
-//     }
+      //   const table = new vscode.CompletionItem(
+      //     "Generate Table Function",
+      //     vscode.CompletionItemKind.Text
+      //   );
 
-//     completions.push(item);
-//   }
+      //   const txt = new vscode.SnippetString();
+      //   const cmbs = getCombinations(stmt.parameters.length);
+      //   txt.appendText("\n");
+      //   for (const cmb of cmbs) {
+      //     txt.appendText(`${cmb.join("")}, 0\n`);
+      //   }
 
-//   const const0 = new vscode.CompletionItem(
-//     "0",
-//     vscode.CompletionItemKind.Constant
-//   );
-//   const0.detail = "Constant";
-//   const0.documentation = new vscode.MarkdownString("**0**: Constant value");
-//   completions.push(const0);
+      //   table.insertText = txt;
+      //   table.detail = "Empty Table";
 
-//   const const1 = new vscode.CompletionItem(
-//     "1",
-//     vscode.CompletionItemKind.Constant
-//   );
-//   const1.detail = "Constant";
-//   const1.documentation = new vscode.MarkdownString("**1**: Constant value");
-//   completions.push(const1);
+      //   completions.push(table);
+      //   return completions;
+      // }
 
-//   return completions;
-// };
+      const const0 = new vscode.CompletionItem(
+        "0",
+        vscode.CompletionItemKind.Constant,
+      );
+      const0.detail = "Constant";
+      const0.documentation = new vscode.MarkdownString("**0**: Constant value");
+      completions.push(const0);
+
+      const const1 = new vscode.CompletionItem(
+        "1",
+        vscode.CompletionItemKind.Constant,
+      );
+      const1.detail = "Constant";
+      const1.documentation = new vscode.MarkdownString("**1**: Constant value");
+      completions.push(const1);
+
+      return completions;
+    },
+  },
+  "(",
+  ")",
+  "[",
+  "=",
+  " ",
+  ",",
+  " ",
+  "\t",
+  "\r",
+  "a",
+  "b",
+  "c",
+  "d",
+  "e",
+  "f",
+  "g",
+  "h",
+  "i",
+  "j",
+  "k",
+  "l",
+  "m",
+  "n",
+  "o",
+  "p",
+  "q",
+  "r",
+  "s",
+  "t",
+  "u",
+  "v",
+  "w",
+  "x",
+  "y",
+  "z",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
+  "N",
+  "O",
+  "P",
+  "Q",
+  "R",
+  "S",
+  "T",
+  "U",
+  "V",
+  "W",
+  "X",
+  "Y",
+  "Z",
+  "0",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+);

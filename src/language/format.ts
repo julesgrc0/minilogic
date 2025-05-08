@@ -84,6 +84,7 @@ class Format {
       case ExpressionType.Variable:
         return expr.name;
       default:
+        console.log(new Error().stack);
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
   }

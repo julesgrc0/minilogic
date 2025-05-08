@@ -112,7 +112,7 @@ class SemanticWarningAnalyzer {
     this.updateExpressionCount(stmt.value);
 
     let new_object = this.removeDeadExpression(stmt.value);
-    if (new_object !== null && !expressionEqual(new_object, stmt.value)) {
+    if (!expressionEqual(new_object, stmt.value)) {
       this.pushWarning(SemanticWarningType.ExpressionOptimized, null, stmt, {
         ...stmt,
         value: new_object,
@@ -144,7 +144,7 @@ class SemanticWarningAnalyzer {
     }
 
     let new_object = this.removeDeadExpression(stmt.body);
-    if (new_object !== null && !expressionEqual(new_object, stmt.body)) {
+    if (!expressionEqual(new_object, stmt.body)) {
       this.pushWarning(
         SemanticWarningType.ExpressionOptimized,
         null,
@@ -189,7 +189,7 @@ class SemanticWarningAnalyzer {
       this.updateExpressionCount(expr.value, true);
 
       let new_object = this.removeDeadExpression(expr.value);
-      if (new_object !== null && !expressionEqual(new_object, expr.value)) {
+      if (!expressionEqual(new_object, expr.value)) {
         this.pushWarning(
           SemanticWarningType.ExpressionOptimized,
           null,
@@ -249,10 +249,10 @@ class SemanticWarningAnalyzer {
     }
   }
 
-  private removeDeadExpression(expr: Expression): Expression | null {
+  private removeDeadExpression(expr: Expression): Expression {
     if (expr.type === ExpressionType.Binary) {
-      const left = this.removeDeadExpression(expr.left) ?? expr.left;
-      const right = this.removeDeadExpression(expr.right) ?? expr.right;
+      const left = this.removeDeadExpression(expr.left);
+      const right = this.removeDeadExpression(expr.right);
 
       if (expr.operator === Operators.Or) {
         if (left.type === ExpressionType.Number && left.value === 1)
@@ -287,7 +287,7 @@ class SemanticWarningAnalyzer {
       expr.type === ExpressionType.Unary &&
       expr.operator === Operators.Not
     ) {
-      const subExpr = this.removeDeadExpression(expr.operand) ?? expr.operand;
+      const subExpr = this.removeDeadExpression(expr.operand);
 
       if (
         subExpr.type === ExpressionType.Unary &&
@@ -295,8 +295,8 @@ class SemanticWarningAnalyzer {
       ) {
         return this.removeDeadExpression(subExpr.operand);
       } else if (subExpr.type === ExpressionType.Binary) {
-        const left = this.removeDeadExpression(subExpr.left) ?? subExpr.left;
-        const right = this.removeDeadExpression(subExpr.right) ?? subExpr.right;
+        const left = this.removeDeadExpression(subExpr.left);
+        const right = this.removeDeadExpression(subExpr.right);
 
         const regroupeCases: Omit<
           Record<Operators, Operators>,
@@ -306,7 +306,6 @@ class SemanticWarningAnalyzer {
           [Operators.Or]: Operators.Nor,
           [Operators.Xor]: Operators.Xnor,
           [Operators.Imply]: Operators.Nimply,
-
           [Operators.Nand]: Operators.And,
           [Operators.Nor]: Operators.Or,
           [Operators.Xnor]: Operators.Xor,
@@ -322,6 +321,11 @@ class SemanticWarningAnalyzer {
             right,
           };
         }
+      } else {
+        return {
+          ...expr,
+          operand: subExpr,
+        };
       }
     } else if (
       expr.type == ExpressionType.FunctionCall ||
@@ -330,10 +334,6 @@ class SemanticWarningAnalyzer {
       let new_params = expr.parameters.map((param) =>
         this.removeDeadExpression(param),
       );
-
-      if (new_params.every((param) => param == null)) {
-        return null;
-      }
 
       return {
         ...expr,
@@ -346,7 +346,7 @@ class SemanticWarningAnalyzer {
       };
     }
 
-    return null;
+    return expr;
   }
 
   private findUnusedFunctionParameters(

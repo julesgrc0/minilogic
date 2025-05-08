@@ -1,4 +1,4 @@
-import { Keywords } from "../lexer";
+import { Keywords, Operators } from "../lexer";
 import {
   Expression,
   ExpressionType,

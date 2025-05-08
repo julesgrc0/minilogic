@@ -66,7 +66,10 @@ export const updateState = (document: vscode.TextDocument): DocumentState => {
     s_warnings,
   });
 
-  return stateMap.get(document.uri.toString()) as DocumentState;
+  const doc = stateMap.get(document.uri.toString());
+  if (!doc) throw new Error("Document not found in state map");
+
+  return doc;
 };
 
 export const getOrCreateState = (
