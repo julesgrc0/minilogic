@@ -88,6 +88,8 @@ class SemanticErrorSolver {
       name = `${basename}${i}`;
       i++;
     }
+    this.variables.push(name);
+    this.functions.push(name);
     return name;
   }
 
@@ -162,8 +164,34 @@ class SemanticErrorSolver {
   }
 
   private moveVariableDeclaration(error: SemanticError) {
-    if (error.type !== SemanticErrorType.VariableCalledBeforeDeclaration)
+    if (
+      error.type !== SemanticErrorType.VariableCalledBeforeDeclaration ||
+      error.target == undefined ||
+      !isStatement(error.object) ||
+      !isStatement(error.target)
+    )
       return;
+
+    const stmt = error.target as Statement;
+    if (stmt.type !== StatementType.Variable) return;
+
+    this.fixes.push({
+      start: error.object.range.start,
+      end: error.object.range.end,
+      message: `Move variable ${stmt.name} declaration before usage`,
+      value:
+        Format.formatStatement(stmt) +
+        "\n" +
+        Format.formatStatement(error.object),
+      others: [
+        {
+          start: stmt.range.start,
+          end: stmt.range.end,
+          message: "Remove variable declaration",
+          value: null,
+        },
+      ],
+    });
   }
 
   private createFunctionParameter(error: SemanticError) {
@@ -205,12 +233,68 @@ class SemanticErrorSolver {
   }
 
   private createNewFunction(error: SemanticError) {
-    if (error.type !== SemanticErrorType.FunctionNotDefined) return;
+    if (
+      error.type !== SemanticErrorType.FunctionNotDefined ||
+      isStatement(error.object)
+    )
+      return;
+    const expr = error.object as Expression;
+    if (expr.type !== ExpressionType.FunctionCall) return;
+
+    const possible_name = this.nearbyName(expr.name, this.functions);
+    if (possible_name && possible_name !== expr.name) {
+      this.fixes.push({
+        start: expr.range.start,
+        end: expr.range.end,
+        message: `Use function ${possible_name} instead of ${expr.name}`,
+        value: `${possible_name}(${expr.parameters.join(", ")})`,
+      });
+      return;
+    }
+    const new_name = this.proposeName(expr.name);
+
+    const new_params = expr.parameters.map(() => this.proposeName(null));
+    this.fixes.push({
+      start: { line: 0, column: 0, offset: 0 },
+      end: { line: 0, column: 0, offset: 0 },
+      message: `Create new function ${expr.name}`,
+      value: `${new_name}(${new_params.join(", ")}) = 0\n`,
+    });
   }
 
   private moveFunctionDeclaration(error: SemanticError) {
-    if (error.type !== SemanticErrorType.FunctionCalledBeforeDeclaration)
+    if (
+      error.type !== SemanticErrorType.FunctionCalledBeforeDeclaration ||
+      error.target == undefined ||
+      !isStatement(error.object) ||
+      !isStatement(error.target)
+    )
       return;
+
+    const stmt = error.target as Statement;
+    if (
+      stmt.type !== StatementType.Function &&
+      stmt.type !== StatementType.FunctionTable
+    )
+      return;
+
+    this.fixes.push({
+      start: error.object.range.start,
+      end: error.object.range.end,
+      message: `Move function ${stmt.name} declaration before usage`,
+      value:
+        Format.formatStatement(stmt) +
+        "\n" +
+        Format.formatStatement(error.object),
+      others: [
+        {
+          start: stmt.range.start,
+          end: stmt.range.end,
+          message: "Remove function declaration",
+          value: null,
+        },
+      ],
+    });
   }
 
   private renameObject(error: SemanticError) {

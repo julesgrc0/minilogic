@@ -12,6 +12,7 @@ type Range = {
 type CodeFix = {
   message: string;
   value: string | null;
+  others?: CodeFix[];
 } & Range;
 
 enum TokenType {

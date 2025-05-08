@@ -44,6 +44,19 @@ export default vscode.languages.registerCodeActionsProvider(
         } else {
           fix.edit.replace(document.uri, range, solution.value);
         }
+        if (solution.others) {
+          for (const other of solution.others) {
+            const otherRange = convertRange({
+              start: other.start,
+              end: other.end,
+            });
+            if (other.value === null) {
+              fix.edit.delete(document.uri, otherRange);
+            } else {
+              fix.edit.replace(document.uri, otherRange, other.value);
+            }
+          }
+        }
         return fix;
       };
 

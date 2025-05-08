@@ -202,6 +202,13 @@ class Parser {
     throw new ParserEatError("Unexpected token", type);
   }
 
+  private last(): Token {
+    if (this.index > 0) {
+      return this.tokens[this.index - 1];
+    }
+    return this.tokens[0];
+  }
+
   private next(): Token {
     if (this.index + 1 < this.tokens.length) {
       this.index++;
@@ -340,10 +347,7 @@ class Parser {
         table,
         range: {
           start: name.start,
-          end:
-            table.length > 0
-              ? table[table.length - 1].value.range.end
-              : name.end,
+          end: this.last().end,
         },
       };
     }

@@ -239,6 +239,61 @@ const hasErrorInExpression = (expr: Expression): boolean => {
   }
 };
 
+const findExpressionInStatements = (
+  expr: Expression,
+  ast: Statement[],
+): Statement | undefined => {
+  const isInsideExpr = (inexpr: Expression): boolean => {
+    if (expressionEqual(inexpr, expr)) return true;
+    switch (inexpr.type) {
+      case ExpressionType.Binary:
+        return isInsideExpr(inexpr.left) || isInsideExpr(inexpr.right);
+      case ExpressionType.Unary:
+        return isInsideExpr(inexpr.operand);
+      case ExpressionType.BuiltinCall:
+      case ExpressionType.FunctionCall:
+        return inexpr.parameters.some((param) => isInsideExpr(param));
+      default:
+        return false;
+    }
+  };
+
+  for (const stmt of ast) {
+    switch (stmt.type) {
+      case StatementType.Variable:
+        if (isInsideExpr(stmt.value)) {
+          return stmt;
+        }
+        break;
+      case StatementType.Function:
+        if (isInsideExpr(stmt.body)) {
+          return stmt;
+        }
+        break;
+      case StatementType.FunctionTable:
+        if (
+          stmt.table.some((row) => {
+            if (isInsideExpr(row.value)) {
+              return true;
+            }
+            return false;
+          })
+        ) {
+          return stmt;
+        }
+        break;
+      case StatementType.BuiltinCall:
+        if (stmt.parameters.some((param) => isInsideExpr(param))) {
+          return stmt;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  return undefined;
+};
+
 export {
   levenshteinDistance,
   getCombinations,
@@ -251,6 +306,7 @@ export {
   positionDistance,
   findNearestToPosition,
   findNearestToLine,
+  findExpressionInStatements,
   hasErrorInExpression,
   convertRange,
   POSITION_NOT_SET,

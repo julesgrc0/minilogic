@@ -15,9 +15,14 @@ MUX(S | A, B) = [
 	0, A
 	1, B
 ]
-
 TABLE(MUX(S, A, B))
+PRINT()  
+
+
+
 
   
 SHOW(A xor INPUT(""))
+
+J = Hello(1 or 1, 0 and 0)
 

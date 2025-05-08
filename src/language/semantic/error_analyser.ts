@@ -2,9 +2,11 @@ import { Keywords, Operators } from "../lexer";
 import {
   Expression,
   ExpressionType,
+  isStatement,
   Statement,
   StatementType,
 } from "../parser";
+import { findExpressionInStatements } from "../utils";
 
 enum SemanticErrorType {
   VariableNotDefinedOrCalledBeforeDeclaration,
@@ -116,26 +118,42 @@ class SemanticErrorAnalyzer {
         error.type ===
         SemanticErrorType.FunctionNotDefinedOrCalledBeforeDeclaration
       ) {
+        if (error.object === undefined || isStatement(error.object))
+          return error;
+
         const funcname = error.message;
         const type = this.functions.has(funcname)
           ? SemanticErrorType.FunctionCalledBeforeDeclaration
           : SemanticErrorType.FunctionNotDefined;
         const message = this.messages[type].replace("{0}", funcname);
+        const object =
+          type == SemanticErrorType.FunctionNotDefined
+            ? error.object
+            : (findExpressionInStatements(error.object, this.program) ??
+              error.object);
 
-        return { ...error, type, message };
+        return { ...error, type, object, message };
       }
 
       if (
         error.type ===
         SemanticErrorType.VariableNotDefinedOrCalledBeforeDeclaration
       ) {
+        if (error.object === undefined || isStatement(error.object))
+          return error;
+
         const varname = error.message;
         const type = this.variables.has(varname)
           ? SemanticErrorType.VariableCalledBeforeDeclaration
           : SemanticErrorType.VariableNotDefined;
         const message = this.messages[type].replace("{0}", varname);
+        const object =
+          type == SemanticErrorType.VariableNotDefined
+            ? error.object
+            : (findExpressionInStatements(error.object, this.program) ??
+              error.object);
 
-        return { ...error, type, message };
+        return { ...error, type, object, message };
       }
 
       return error;
@@ -170,6 +188,24 @@ class SemanticErrorAnalyzer {
       message,
       object,
       target,
+    });
+  }
+
+  private getVariableStatement(name: string): Statement | undefined {
+    return this.program.find((stmt) => {
+      if (stmt.type !== StatementType.Variable) return false;
+      return stmt.name === name;
+    });
+  }
+
+  private getFunctionStatement(name: string): Statement | undefined {
+    return this.program.find((stmt) => {
+      if (
+        stmt.type !== StatementType.Function &&
+        stmt.type !== StatementType.FunctionTable
+      )
+        return false;
+      return stmt.name === name;
     });
   }
 
@@ -436,6 +472,7 @@ class SemanticErrorAnalyzer {
           SemanticErrorType.VariableNotDefinedOrCalledBeforeDeclaration,
           [expr.name],
           expr,
+          this.getVariableStatement(expr.name),
         );
       }
       return;
@@ -488,6 +525,7 @@ class SemanticErrorAnalyzer {
         SemanticErrorType.VariableNotDefinedOrCalledBeforeDeclaration,
         [expr.name],
         expr,
+        this.getVariableStatement(expr.name),
       );
     }
 
@@ -509,6 +547,7 @@ class SemanticErrorAnalyzer {
         SemanticErrorType.FunctionNotDefinedOrCalledBeforeDeclaration,
         [expr.name],
         expr,
+        this.getFunctionStatement(expr.name),
       );
     }
 
