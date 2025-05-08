@@ -48,7 +48,9 @@ export default vscode.languages.registerHoverProvider("minilogic", {
       return;
     }
 
-    const interpreter = new Interpreter(state.ast, async (m) => 0);
+    const interpreter = new Interpreter(state.ast, async (m) => {
+      throw new Error(m);
+    });
     if (
       stmt.type == StatementType.Function ||
       stmt.type == StatementType.FunctionTable
